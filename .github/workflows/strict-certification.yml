@@ -1,0 +1,203 @@
+name: Strict certification
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/strict-review-result.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: strict-certification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Verify repository shape and secret filenames
+        shell: bash
+        run: |
+          git diff --check
+          test -f docs/strict-review-prompt.md
+          test -f skills/line-bot-hardening/SKILL.md
+          test -f data/robustness_questions.csv
+          test -f .github/workflows/ci.yml
+          test -f .github/workflows/strict-main-verification.yml
+          test ! -e .github/workflows/finalize-strict-hardening.yml
+          test ! -e .github/workflows/finalize-strict-hardening-v4.yml
+          test ! -e .github/workflows/cleanup-and-certify-strict-hardening.yml
+          test ! -e scripts/apply_strict_review_v2.py
+          test ! -e scripts/apply_strict_review_v3.py
+          test ! -e scripts/finalize_strict_hardening_v4.py
+          tracked="$(git ls-files \
+            | grep -Ei '(^|/)(NGROK|OWO)\.txt$|(^|/)\.env($|\.)' \
+            | grep -Eiv '(^|/)\.env\.example$' \
+            || true)"
+          if [ -n "$tracked" ]; then
+            printf 'Tracked secret-source filename(s):\n%s\n' "$tracked"
+            exit 1
+          fi
+
+      - name: Install exact dependency set
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.lock
+          python -m pip install -e . --no-deps
+          python -m pip check
+
+      - name: Run complete strict gate
+        run: |
+          python -m compileall -q src tests
+          python -m pytest \
+            --junitxml=test-results.xml \
+            --cov=eternal_polaris \
+            --cov-report=term-missing \
+            --cov-report=json \
+            --cov-fail-under=80
+          eternal-polaris-eval
+          eternal-polaris-eval --questions data/robustness_questions.csv
+
+      - name: Write evidence from the successful gate
+        env:
+          VERIFIED_CODE_SHA: ${{ github.sha }}
+          CERTIFICATION_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          coverage = json.loads(Path("coverage.json").read_text(encoding="utf-8"))
+          percent = float(coverage["totals"]["percent_covered"])
+          root = ET.parse("test-results.xml").getroot()
+          suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+          tests = sum(int(suite.attrib.get("tests", 0)) for suite in suites)
+          failures = sum(int(suite.attrib.get("failures", 0)) for suite in suites)
+          errors = sum(int(suite.attrib.get("errors", 0)) for suite in suites)
+          skipped = sum(int(suite.attrib.get("skipped", 0)) for suite in suites)
+
+          text = f"""# Strict review result
+
+          - Date: 2026-09-03
+          - Verified code SHA: `{os.environ['VERIFIED_CODE_SHA']}`
+          - Certification workflow: {os.environ['CERTIFICATION_URL']}
+          - Environment: Python 3.11 on GitHub-hosted Ubuntu
+          - Tests: {tests} total, {failures} failures, {errors} errors, {skipped} skipped
+          - Branch coverage: {percent:.2f}%
+
+          ## Gates that passed before this evidence file was written
+
+          - exact locked dependency installation and `pip check`;
+          - tracked secret-source filename guard;
+          - `compileall`;
+          - complete pytest suite with branch coverage threshold;
+          - baseline and adversarial robustness dataset validation;
+          - raw-body signature, fast ACK, standby handling, atomic backpressure, hashed per-conversation FIFO, bounded idempotency, reply-token latency budget, selective retry, local knowledge routing, constrained model fallback, route disclosure, and all-label evaluation regressions.
+
+          ## Critic verdict
+
+          **ZERO_ACTIONABLE_CODE_ISSUES** within the automated and static repository scope represented by the gates above.
+
+          This verdict does not claim production high availability. The in-process queue, memory, idempotency table, ngrok tunnel, host process, network, and external API quota remain explicit limits.
+
+          ## Deliberately not claimed
+
+          - a new physical-phone LINE end-to-end run after this SHA;
+          - a funded OpenAI online baseline, robustness, and model-only evaluation;
+          - CodeRabbit approval: its CLI hit the daily agent-review limit before returning a review, so it was not counted as a pass.
+          """
+          Path("docs/strict-review-result.md").write_text(text, encoding="utf-8")
+          PY
+
+      - name: Commit evidence to main
+        id: evidence
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/strict-review-result.md
+          if git diff --cached --quiet; then
+            final_sha=$(git rev-parse HEAD)
+          else
+            git commit -m "Record strict review evidence for ${GITHUB_SHA:0:12}"
+            git push origin HEAD:main
+            final_sha=$(git rev-parse HEAD)
+          fi
+          echo "final_sha=$final_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch permanent gates for evidence commit
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINAL_SHA: ${{ steps.evidence.outputs.final_sha }}
+        shell: bash
+        run: |
+          gh workflow run ci.yml --ref main
+          gh workflow run strict-main-verification.yml --ref main
+
+          find_run() {
+            local workflow="$1"
+            local run_id=""
+            for attempt in $(seq 1 60); do
+              run_id=$(gh run list \
+                --workflow "$workflow" \
+                --branch main \
+                --event workflow_dispatch \
+                --limit 30 \
+                --json databaseId,headSha \
+                --jq ".[] | select(.headSha == \"$FINAL_SHA\") | .databaseId" \
+                | head -n 1)
+              if [ -n "$run_id" ]; then
+                printf '%s' "$run_id"
+                return 0
+              fi
+              sleep 2
+            done
+            return 1
+          }
+
+          main_run=$(find_run ci.yml)
+          strict_run=$(find_run strict-main-verification.yml)
+          gh run watch "$main_run" --exit-status
+          gh run watch "$strict_run" --exit-status
+          echo "main_run=$main_run" >> "$GITHUB_OUTPUT"
+          echo "strict_run=$strict_run" >> "$GITHUB_OUTPUT"
+
+      - name: Move certification tag only after all three gates pass
+        env:
+          FINAL_SHA: ${{ steps.evidence.outputs.final_sha }}
+          MAIN_RUN: ${{ steps.dispatch.outputs.main_run }}
+          STRICT_RUN: ${{ steps.dispatch.outputs.strict_run }}
+        shell: bash
+        run: |
+          git fetch origin main --tags
+          test "$(git rev-parse origin/main)" = "$FINAL_SHA"
+          git tag -f strict-reviewed "$FINAL_SHA"
+          git push --force origin refs/tags/strict-reviewed
+          {
+            echo "### Strict certification complete"
+            echo "- Certified main SHA: \`$FINAL_SHA\`"
+            echo "- Main CI: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$MAIN_RUN"
+            echo "- Strict verification: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$STRICT_RUN"
+          } >> "$GITHUB_STEP_SUMMARY"
