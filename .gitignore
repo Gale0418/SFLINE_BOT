@@ -1,10 +1,14 @@
 .env
-NGROK.txt
+.env.*
+!.env.example
+[Nn][Gg][Rr][Oo][Kk].[Tt][Xx][Tt]
+[Oo][Ww][Oo].[Tt][Xx][Tt]
 .venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 dist/
 build/
@@ -12,4 +16,3 @@ build/
 logs/
 results/
 output/mission-center-assets/
-
