@@ -170,10 +170,14 @@ class KnowledgeBase:
             raise KnowledgeError("範圍內回答必須有內容與來源")
         if len(answer.source_ids) != len(set(answer.source_ids)):
             raise KnowledgeError("回答來源不得重複")
+        source_cards = []
         for source_id in answer.source_ids:
             card = self.by_id.get(source_id)
             if card is None:
                 raise KnowledgeError("回答來源不存在")
+            source_cards.append(card)
+        if not any(card.label is answer.label for card in source_cards):
+            raise KnowledgeError("回答至少需要一個與主要分類一致的來源")
         return answer
 
     def source_names(self, source_ids: tuple[str, ...]) -> list[str]:
