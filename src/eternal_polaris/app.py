@@ -39,6 +39,7 @@ from .quiz import (
 
 UNSUPPORTED_REPLY = "我目前只看得懂一對一聊天室中的文字訊息。圖片與群組試煉，先留給下一張星圖吧。"
 QUESTION_TOO_LONG_REPLY = "這段訊息太長了。請把問題縮短到 1000 個字以內，我們再慢慢談。"
+EMPTY_MESSAGE_REPLY = "我似乎只聽見了一陣安靜。寫下一個天文問題，或說『挑戰』敲響寶庫吧。"
 BUSY_REPLY = "Busy"
 
 
@@ -203,6 +204,10 @@ def _handle_event(
             logger.info("event=reply_sent category=unsupported_message")
             return
         text = event.message.text.strip()
+        if not text:
+            _reply(reply_gateway, reply_token, EMPTY_MESSAGE_REPLY, _home_options())
+            logger.info("event=reply_sent category=empty_message")
+            return
         if len(text) > 1000:
             _reply(reply_gateway, reply_token, QUESTION_TOO_LONG_REPLY)
             logger.info("event=reply_sent category=question_too_long")
@@ -395,7 +400,7 @@ def _reply_quiz_outcome(
         correct_letter=question.correct_letter,
         correct_text=question.correct_text,
         explanation=question.explanation,
-        source_name=question.source_name,
+        source_name=f"{question.source_name}\n{question.source_url}",
         score=outcome.score,
         answered=outcome.answered,
         total=outcome.total,

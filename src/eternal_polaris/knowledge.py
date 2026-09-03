@@ -168,6 +168,10 @@ class KnowledgeBase:
             return answer
         if not answer.answer.strip() or not answer.source_ids:
             raise KnowledgeError("範圍內回答必須有內容與來源")
+        if len(answer.answer) > 700:
+            raise KnowledgeError("回答內容超過允許長度")
+        if len(answer.source_ids) > 3:
+            raise KnowledgeError("回答來源最多三個")
         if len(answer.source_ids) != len(set(answer.source_ids)):
             raise KnowledgeError("回答來源不得重複")
         source_cards = []

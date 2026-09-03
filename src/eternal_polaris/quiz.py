@@ -236,6 +236,8 @@ class QuizManager:
         clock: Callable[[], float] = time.monotonic,
         random_source: Random | SystemRandom | None = None,
     ) -> None:
+        if ttl_seconds < 1 or question_count < 1 or max_sessions < 1:
+            raise ValueError("quiz TTL、題數與場次容量必須為正整數")
         self.bank = bank
         self._salt = salt.encode("utf-8")
         self._ttl_seconds = ttl_seconds
