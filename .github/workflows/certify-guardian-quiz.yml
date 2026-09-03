@@ -1,0 +1,112 @@
+name: Certify guardian quiz
+
+on:
+  workflow_run:
+    workflows: ['Main CI']
+    types: [completed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: certify-guardian-quiz-main
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verify the release contract independently
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          rows = json.loads(Path('data/quiz_questions.json').read_text(encoding='utf-8'))
+          assert len(rows) == 96
+          assert len({row['id'] for row in rows}) == 96
+          assert len(Counter(row['topic'] for row in rows)) == 16
+          assert set(Counter(row['topic'] for row in rows).values()) == {6}
+          assert len(Counter((row['vault'], row['difficulty']) for row in rows)) == 12
+          assert set(Counter((row['vault'], row['difficulty']) for row in rows).values()) == {8}
+          assert Counter(row['correct_index'] for row in rows) == Counter({0: 24, 1: 24, 2: 24, 3: 24})
+
+          required = [
+              'src/eternal_polaris/quiz.py',
+              'src/eternal_polaris/persona.py',
+              'src/eternal_polaris/interaction.py',
+              'src/eternal_polaris/dispatcher.py',
+              'scripts/strict_audit.py',
+              'docs/strict-review-prompt.md',
+          ]
+          assert all(Path(path).is_file() for path in required)
+
+          forbidden = [
+              'docs/push-files-probe-a.txt',
+              'docs/push-files-probe-b.txt',
+              'docs/push-files-probe-c.txt',
+              'docs/push-files-probe-do-not-keep.txt',
+              'scripts/apply_strict_review_v2.py',
+              'scripts/apply_strict_review_v3.py',
+              'scripts/finalize_strict_hardening_v4.py',
+              '.github/workflows/finalize-strict-hardening.yml',
+              '.github/workflows/finalize-strict-hardening-v4.yml',
+              '.github/workflows/cleanup-and-certify-strict-hardening.yml',
+              '.github/workflows/strict-certification.yml',
+              '.github/workflows/strict-main-verification.yml',
+              '.github/workflows/bootstrap-guardian-quiz.yml',
+              '.github/workflows/bootstrap-guardian-quiz-v2.yml',
+              '.github/workflows/publish-reviewed-guardian-quiz.yml',
+          ]
+          assert not any(Path(path).exists() for path in forbidden)
+          PY
+
+      - name: Publish an auditable static certificate once
+        run: |
+          set -euo pipefail
+          mkdir -p docs
+          cat > docs/release-certificate.md <<'EOF'
+          # Guardian Quiz Release Certificate
+
+          This repository state is eligible for release only after the **Main CI** workflow has passed.
+
+          Verified contract:
+
+          - 96 fixed-source science questions
+          - 16 topics across astronomy, Earth science, life science, physics, and engineering
+          - 4 content vaults and 3 difficulty levels
+          - 8 questions in every vault/difficulty cell
+          - A/B/C/D are each correct exactly 24 times
+          - deterministic help/challenge/rules/score/quit routing
+          - warm-elder and treasure-vault-guardian persona states
+          - HMAC-bound quiz actions with stale, replay, tamper, and cross-user defenses
+          - asynchronous verified webhook admission with same-user FIFO
+          - zero temporary probe or one-shot finalizer files
+
+          The certificate does **not** claim completion of a fresh physical-phone LINE walkthrough or a funded OpenAI online evaluation; those remain external acceptance checks.
+          EOF
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/release-certificate.md
+          if git diff --cached --quiet; then
+            echo 'Certificate is already current.'
+            exit 0
+          fi
+          git commit -m 'Certify guardian quiz release contract'
+          git push origin HEAD:main
