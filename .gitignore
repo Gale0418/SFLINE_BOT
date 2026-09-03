@@ -1,0 +1,15 @@
+.env
+NGROK.txt
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+logs/
+results/
+output/mission-center-assets/
+

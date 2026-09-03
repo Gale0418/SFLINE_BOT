@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eternal-polaris-line-bot"
+version = "0.1.0"
+description = "永恆北極星：LINE 天文與科幻物理問答機器人"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "Flask>=3.1,<4",
+  "line-bot-sdk>=3.25,<4",
+  "openai>=2.0,<3",
+  "python-dotenv>=1.1,<2",
+  "waitress>=3.0,<4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9.0.3,<10",
+  "pytest-cov>=6.2,<7",
+]
+
+[project.scripts]
+eternal-polaris = "eternal_polaris.__main__:main"
+eternal-polaris-eval = "eternal_polaris.evaluation:main"
+eternal-polaris-migrate-secrets = "eternal_polaris.secret_migration:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+eternal_polaris = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --disable-warnings"

@@ -1,0 +1,290 @@
+[
+  {
+    "id": "ov001",
+    "canonical_question": "事件視界望遠鏡觀測到的黑洞影像代表什麼？",
+    "aliases": ["黑洞照片是真的嗎？", "M87 黑洞影像觀測"],
+    "facts": [
+      "事件視界望遠鏡（EHT）在 2019 年公布了 M87 星系中心超大質量黑洞周圍的環狀電波影像。",
+      "影像中的亮環來自黑洞附近高溫電漿發出的光，中央較暗區域是黑洞陰影，不是直接看見事件視界內部。"
+    ],
+    "label": "observed_verified",
+    "source_name": "Event Horizon Telescope Collaboration",
+    "source_url": "https://eventhorizontelescope.org/press-release-april-10-2019-astronomers-capture-first-image-black-hole"
+  },
+  {
+    "id": "ov002",
+    "canonical_question": "什麼是重力波？人類觀測到過嗎？",
+    "aliases": ["LIGO 觀測到什麼", "重力波是否存在"],
+    "facts": [
+      "重力波是時空幾何的漣漪，會以光速傳播。",
+      "LIGO 已從雙黑洞與雙中子星等劇烈天文事件觀測到重力波訊號，首個直接探測在 2015 年完成。"
+    ],
+    "label": "observed_verified",
+    "source_name": "LIGO Laboratory — What are Gravitational Waves?",
+    "source_url": "https://www.ligo.caltech.edu/WA/page/what-are-gw"
+  },
+  {
+    "id": "ov003",
+    "canonical_question": "天文學家如何用凌日法發現系外行星？",
+    "aliases": ["系外行星凌日觀測", "行星經過恆星前方"],
+    "facts": [
+      "當行星從母恆星前方通過時，恆星亮度會出現週期性、微小下降，這就是凌日訊號。",
+      "凌日深度可估計行星相對於恆星的大小，週期則有助於推算軌道週期。"
+    ],
+    "label": "observed_verified",
+    "source_name": "NASA Science — How We Find and Characterize Exoplanets",
+    "source_url": "https://science.nasa.gov/exoplanets/how-we-find-and-characterize/"
+  },
+  {
+    "id": "ov004",
+    "canonical_question": "宇宙微波背景是什麼觀測證據？",
+    "aliases": ["CMB 是什麼", "宇宙背景輻射"],
+    "facts": [
+      "宇宙微波背景（CMB）是早期宇宙留下的微波輻射，來自宇宙變得足夠冷、光子能長距離傳播的時期。",
+      "CMB 的溫度起伏與偏振已被多個太空與地面實驗測量，提供早期宇宙與宇宙學模型的重要觀測限制。"
+    ],
+    "label": "observed_verified",
+    "source_name": "NASA Science — COBE Science",
+    "source_url": "https://science.nasa.gov/mission/cobe/science/"
+  },
+  {
+    "id": "ov005",
+    "canonical_question": "脈衝星為什麼會發出規律的脈衝？",
+    "aliases": ["中子星脈衝", "pulsar 是什麼"],
+    "facts": [
+      "脈衝星是快速自轉的中子星，具有強磁場，會沿磁極方向發射輻射束。",
+      "當輻射束週期性掃過地球，望遠鏡就會接收到規律脈衝；這是幾何與自轉造成的觀測效果。"
+    ],
+    "label": "observed_verified",
+    "source_name": "NASA Science — Hubble Pulsars",
+    "source_url": "https://science.nasa.gov/mission/hubble/science/science-behind-the-discoveries/hubble-pulsars/"
+  },
+  {
+    "id": "ov006",
+    "canonical_question": "太陽中微子是如何被觀測到的？",
+    "aliases": ["太陽中微子問題", "solar neutrinos"],
+    "facts": [
+      "太陽核融合反應會產生中微子，這些粒子能穿過太陽並抵達地球。",
+      "中微子探測器已測量到太陽中微子，也發現不同味中微子之間會振盪，解釋了早期的太陽中微子數量差異。"
+    ],
+    "label": "observed_verified",
+    "source_name": "Nobel Prize — 2015 Physics Prize",
+    "source_url": "https://www.nobelprize.org/prizes/physics/2015/press-release/"
+  },
+  {
+    "id": "ov007",
+    "canonical_question": "宇宙膨脹有什麼觀測證據？",
+    "aliases": ["星系紅移與宇宙膨脹", "宇宙是否正在膨脹"],
+    "facts": [
+      "遙遠星系的光譜普遍呈現紅移，而且平均而言距離越遠的星系退行速度越高。",
+      "這些觀測支持宇宙尺度隨時間演化、目前正在膨脹的宇宙學描述；膨脹不是星系在固定空間中從單一中心爆散。"
+    ],
+    "label": "observed_verified",
+    "source_name": "NASA Science — Galaxies",
+    "source_url": "https://science.nasa.gov/universe/galaxies/"
+  },
+  {
+    "id": "ov008",
+    "canonical_question": "OSIRIS-REx 從小行星 Bennu 帶回了什麼？",
+    "aliases": ["Bennu 樣本返回", "小行星樣本任務"],
+    "facts": [
+      "NASA 的 OSIRIS-REx 任務在 Bennu 表面採集樣本，並於 2023 年將樣本送回地球。",
+      "樣本研究可用來分析早期太陽系的物質與含碳成分，但不能直接證明 Bennu 曾存在生命。"
+    ],
+    "label": "observed_verified",
+    "source_name": "NASA Science — Asteroid 101955 Bennu",
+    "source_url": "https://science.nasa.gov/solar-system/asteroids/101955-bennu/"
+  },
+  {
+    "id": "tu001",
+    "canonical_question": "Alcubierre 曲速度規描述了什麼？",
+    "aliases": ["曲速引擎理論", "Alcubierre drive"],
+    "facts": [
+      "Alcubierre 度規是廣義相對論中的一個數學時空解，構想讓局部空間前方收縮、後方膨脹，使一個『曲速泡』移動。",
+      "它不是已建成的引擎；原始模型涉及特殊能量條件與巨大工程限制，因此目前仍未實現。"
+    ],
+    "label": "theoretical_unrealized",
+    "source_name": "Miguel Alcubierre, The Warp Drive: Hyper-fast travel within general relativity",
+    "source_url": "https://arxiv.org/abs/gr-qc/0009013"
+  },
+  {
+    "id": "tu002",
+    "canonical_question": "可穿越蟲洞在物理理論中需要什麼條件？",
+    "aliases": ["蟲洞能穿越嗎？", "traversable wormhole"],
+    "facts": [
+      "可穿越蟲洞是連接兩個時空區域、且允許物質通過的理論幾何構造。",
+      "維持其喉部不塌縮通常需要違反一般能量條件的物質或等效效應；目前沒有觀測到可穿越蟲洞。"
+    ],
+    "label": "theoretical_unrealized",
+    "source_name": "Morris and Thorne, Wormholes in spacetime and their use for interstellar travel",
+    "source_url": "https://arxiv.org/abs/gr-qc/9302026"
+  },
+  {
+    "id": "tu003",
+    "canonical_question": "宇宙弦是什麼理論性宇宙缺陷？",
+    "aliases": ["cosmic strings", "宇宙弦是否存在"],
+    "facts": [
+      "宇宙弦是假設在早期宇宙相變中形成的一維拓撲缺陷，可能具有極高線密度。",
+      "它們屬於理論預測，尚未被可靠觀測確認；若存在，可能在重力透鏡或重力波等訊號中留下痕跡。"
+    ],
+    "label": "theoretical_unrealized",
+    "source_name": "NASA Science — Dark Energy (Cosmic Strings)",
+    "source_url": "https://science.nasa.gov/dark-energy/"
+  },
+  {
+    "id": "tu004",
+    "canonical_question": "磁單極子是什麼，為什麼仍屬未實現理論？",
+    "aliases": ["magnetic monopole", "只有一個磁極的粒子"],
+    "facts": [
+      "磁單極子是只帶有北極或南極、而不是通常成對出現磁極的假想基本粒子。",
+      "一些大統一理論預測它可能存在，但粒子實驗至今沒有確認基本磁單極子的存在。"
+    ],
+    "label": "theoretical_unrealized",
+    "source_name": "CERN — MoEDAL-MAPP",
+    "source_url": "https://home.cern/science/experiments/moedal-mapp/"
+  },
+  {
+    "id": "tu005",
+    "canonical_question": "質子衰變為什麼是重要但尚未觀測到的現象？",
+    "aliases": ["proton decay", "質子會不會衰變"],
+    "facts": [
+      "許多大統一理論允許質子衰變，若觀測到就能支持超越標準模型的粒子物理理論。",
+      "Super-Kamiokande 等實驗持續搜尋質子衰變，但截至相關搜尋報告仍未得到確證事件，因此只能給出壽命下限。"
+    ],
+    "label": "theoretical_unrealized",
+    "source_name": "Super-Kamiokande — Proton Decay",
+    "source_url": "https://www-sk.icrr.u-tokyo.ac.jp/en/sk/about/research/"
+  },
+  {
+    "id": "tu006",
+    "canonical_question": "超對稱理論預測了什麼？",
+    "aliases": ["supersymmetry", "SUSY 粒子"],
+    "facts": [
+      "超對稱提出費米子與玻色子之間存在更深層的對稱，並為已知粒子配對假想的超對稱夥伴。",
+      "大型強子對撞機已對多種超對稱模型進行搜尋，但尚未發現被確認的超對稱粒子。"
+    ],
+    "label": "theoretical_unrealized",
+    "source_name": "CERN — Supersymmetry",
+    "source_url": "https://home.cern/science/physics/supersymmetry"
+  },
+  {
+    "id": "tu007",
+    "canonical_question": "軸子可能如何成為暗物質候選者？",
+    "aliases": ["axion dark matter", "軸子暗物質"],
+    "facts": [
+      "軸子是為解決強作用 CP 問題而提出的假想輕質粒子，也可能以冷暗物質形式存在。",
+      "軸子暗物質仍是候選模型；實驗正在以共振腔、磁場與其他方法搜尋，但尚未確認軸子。"
+    ],
+    "label": "theoretical_unrealized",
+    "source_name": "Particle Data Group — Axions and other similar particles",
+    "source_url": "https://pdg.lbl.gov/2024/reviews/rpp2024-rev-axions.pdf"
+  },
+  {
+    "id": "tu008",
+    "canonical_question": "量子重力為什麼仍需要理論發展？",
+    "aliases": ["graviton 是否存在", "量子化重力"],
+    "facts": [
+      "廣義相對論以經典時空描述重力，而量子場論描述其他基本交互作用，兩者在極端條件下尚未完成一致的量子化整合。",
+      "重力子是量子重力中的假想媒介粒子，目前沒有直接觀測證據，也沒有完成被實驗確認的量子重力理論。"
+    ],
+    "label": "theoretical_unrealized",
+    "source_name": "Einstein Online — Quantum gravity",
+    "source_url": "https://www.einstein-online.info/en/explandict/quantum-gravity/"
+  },
+  {
+    "id": "sf001",
+    "canonical_question": "《星際爭霸戰》的傳送器能把人瞬間搬到遠方嗎？",
+    "aliases": ["Star Trek transporter", "科幻人體傳送"],
+    "facts": [
+      "《星際爭霸戰》中的 transporter 是作品設定，用來將人物或物體轉換並重組到另一地點。",
+      "它不是現實中的人體傳送技術；真實量子傳態傳送的是量子態資訊，不是把人體物質瞬間搬運。"
+    ],
+    "label": "science_fiction",
+    "source_name": "Star Trek — Real-World Star Trek Inventions",
+    "source_url": "https://www.startrek.com/news/10-cutting-edge-real-world-star-trek-inventions"
+  },
+  {
+    "id": "sf002",
+    "canonical_question": "《星際大戰》的超空間是什麼？",
+    "aliases": ["Star Wars hyperspace", "超光速航行設定"],
+    "facts": [
+      "《星際大戰》的 hyperspace 是一種作品設定中的替代空間或航行狀態，讓星艦能在劇情中快速跨越星系距離。",
+      "超空間航行是科幻敘事機制，不是已被現代物理或工程實現的超光速交通方式。"
+    ],
+    "label": "science_fiction",
+    "source_name": "StarWars.com — Hyperdrive",
+    "source_url": "https://www.starwars.com/databank/hyperdrive"
+  },
+  {
+    "id": "sf003",
+    "canonical_question": "《Doctor Who》的 TARDIS 為什麼能內部比外部大？",
+    "aliases": ["TARDIS bigger on the inside", "Doctor Who 時空機器"],
+    "facts": [
+      "TARDIS 是《Doctor Who》中的時空機器，具有『外部看起來較小、內部空間更大』的虛構特徵。",
+      "這種非歐幾何般的內外空間關係是作品設定，沒有現實可用的工程方案。"
+    ],
+    "label": "science_fiction",
+    "source_name": "Doctor Who — TARDIS",
+    "source_url": "https://www.doctorwho.tv/characters/the-tardis"
+  },
+  {
+    "id": "sf004",
+    "canonical_question": "《基地》的心理史學能準確預測個人未來嗎？",
+    "aliases": ["Foundation psychohistory", "心理史學"],
+    "facts": [
+      "心理史學是艾薩克·阿西莫夫《基地》系列中的虛構數學社會科學，用大規模群體行為預測文明走向。",
+      "作品設定強調它不能可靠預測單一個人的行動；現實世界也沒有能如此預測整個銀河帝國的科學方法。"
+    ],
+    "label": "science_fiction",
+    "source_name": "Encyclopaedia Britannica — Foundation series",
+    "source_url": "https://www.britannica.com/topic/Foundation-series"
+  },
+  {
+    "id": "sf005",
+    "canonical_question": "《沙丘》的香料能讓人真正預知未來嗎？",
+    "aliases": ["Dune spice prescience", "香料與預知"],
+    "facts": [
+      "《沙丘》中的 mélange（香料）是虛構物質，作品描寫它具有延長壽命、改變意識與促成預知等效果。",
+      "香料造成的預知能力屬於小說世界觀，沒有現實藥物或物理證據支持。"
+    ],
+    "label": "science_fiction",
+    "source_name": "Penguin Random House — Dune",
+    "source_url": "https://www.penguinrandomhouse.com/books/829984/dune-deluxe-trade-paperback-edition-by-frank-herbert/"
+  },
+  {
+    "id": "sf006",
+    "canonical_question": "科幻作品中的 ansible 能否實現即時星際通訊？",
+    "aliases": ["ansible", "瞬時星際通訊"],
+    "facts": [
+      "ansible 是科幻作品常見的虛構裝置名稱，通常用來描述不受距離限制的即時通訊。",
+      "現代物理的量子糾纏不能用來傳送可控的超光速訊息，因此 ansible 仍屬科幻概念。"
+    ],
+    "label": "science_fiction",
+    "source_name": "The Encyclopedia of Science Fiction — Ansible",
+    "source_url": "https://sf-encyclopedia.com/entry/ansible"
+  },
+  {
+    "id": "sf007",
+    "canonical_question": "H. G. Wells 的時間機器是現實物理裝置嗎？",
+    "aliases": ["The Time Machine", "時間旅行機器"],
+    "facts": [
+      "《The Time Machine》是 H. G. Wells 的科幻小說，時間機器是故事中的虛構裝置。",
+      "相對論允許不同觀察者經歷不同的固有時間，但這不等於已能建造可任意往返過去的時間機器。"
+    ],
+    "label": "science_fiction",
+    "source_name": "Encyclopaedia Britannica — The Time Machine",
+    "source_url": "https://www.britannica.com/topic/The-Time-Machine"
+  },
+  {
+    "id": "sf008",
+    "canonical_question": "漫威的振金是什麼？它真的能吸收所有動能嗎？",
+    "aliases": ["Marvel vibranium", "黑豹振金"],
+    "facts": [
+      "振金（vibranium）是漫威宇宙中的虛構金屬，常被描寫成能吸收或分散振動與動能。",
+      "現實材料可以吸收、轉換或耗散部分能量，但不存在已知材料能如作品設定般以振金方式運作。"
+    ],
+    "label": "science_fiction",
+    "source_name": "Marvel — The Origin of Vibranium",
+    "source_url": "https://www.marvel.com/articles/comics/a-guide-to-the-myths-legends-and-gods-of-wakanda"
+  }
+]
