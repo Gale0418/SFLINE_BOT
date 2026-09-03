@@ -13,7 +13,7 @@ class ScienceLabel(StrEnum):
 
 LABEL_TITLES = {
     ScienceLabel.OBSERVED_VERIFIED: "已觀測／已驗證",
-    ScienceLabel.THEORETICAL_UNREALIZED: "理論上可行但尚未實現",
+    ScienceLabel.THEORETICAL_UNREALIZED: "理論上可描述但尚未實現",
     ScienceLabel.SCIENCE_FICTION: "科幻設定",
     ScienceLabel.OUT_OF_SCOPE: "超出範圍",
 }
@@ -35,10 +35,10 @@ class BotAnswer:
     label: ScienceLabel
     answer: str
     source_ids: tuple[str, ...]
+    route: str = "model"
 
 
 @dataclass(frozen=True, slots=True)
 class Exchange:
     user: str
     assistant: str
-
