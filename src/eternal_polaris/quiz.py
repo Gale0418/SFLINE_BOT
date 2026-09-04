@@ -7,7 +7,7 @@ import secrets
 import threading
 import time
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from random import Random, SystemRandom
 from typing import Callable
@@ -132,7 +132,53 @@ class QuizBank:
                 )
             except Exception as exc:
                 raise QuizError(f"題庫第 {index} 列格式無效") from exc
-        return cls(questions)
+        # Editorial TSV files are optimized for readability, not for where the
+        # correct option happens to sit. Reposition choices deterministically
+        # at load time so every 8-question vault/difficulty block has exactly
+        # two A/B/C/D answers. The correct text and every distractor are kept;
+        # only their positions change. This permanently prevents answer-letter
+        # bias from creeping back in when questions are edited.
+        return cls(cls._rebalance_answer_positions(questions))
+
+    @staticmethod
+    def _rebalance_answer_positions(questions: list[QuizQuestion]) -> list[QuizQuestion]:
+        grouped: dict[tuple[str, str], list[QuizQuestion]] = {}
+        for question in questions:
+            grouped.setdefault((question.vault, question.difficulty), []).append(question)
+
+        rebalanced: dict[str, QuizQuestion] = {}
+        for (vault, difficulty), group in grouped.items():
+            ordered = sorted(group, key=lambda question: question.id)
+            digest = hashlib.sha256(f"{vault}:{difficulty}".encode("utf-8")).digest()
+            offset = digest[0] % len(LETTERS)
+            for index, question in enumerate(ordered):
+                target_letter = LETTERS[(index + offset) % len(LETTERS)]
+                rebalanced[question.id] = QuizBank._move_correct_choice(question, target_letter)
+
+        return [rebalanced.get(question.id, question) for question in questions]
+
+    @staticmethod
+    def _move_correct_choice(question: QuizQuestion, target_letter: str) -> QuizQuestion:
+        if question.correct_letter not in LETTERS or target_letter not in LETTERS:
+            return question
+        correct_index = LETTERS.index(question.correct_letter)
+        correct_text = question.choices[correct_index]
+        distractors = [
+            choice for index, choice in enumerate(question.choices) if index != correct_index
+        ]
+        rebuilt: list[str] = []
+        distractor_index = 0
+        for letter in LETTERS:
+            if letter == target_letter:
+                rebuilt.append(correct_text)
+            else:
+                rebuilt.append(distractors[distractor_index])
+                distractor_index += 1
+        return replace(
+            question,
+            choices=(rebuilt[0], rebuilt[1], rebuilt[2], rebuilt[3]),
+            correct_letter=target_letter,
+        )
 
     def _validate(self) -> None:
         if len(self.questions) != 96 or len(self.by_id) != 96:
