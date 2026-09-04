@@ -49,5 +49,5 @@ skip_covered = true
 exclude_lines = [
   "if TYPE_CHECKING:",
   "if __name__ == .__main__.:",
-  "\.\.\.",
+  '\.\.\.',
 ]
