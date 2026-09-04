@@ -107,6 +107,26 @@ def test_explicit_openai_never_silently_switches_to_google(monkeypatch, tmp_path
     assert settings.openai_model == "gpt-5.6-luna"
 
 
+def test_provider_model_mismatch_is_rejected():
+    with pytest.raises(ConfigurationError, match="GEMINI_MODEL"):
+        Settings(
+            "unused",
+            "secret",
+            "token",
+            ai_provider="google",
+            gemini_api_key="google-key",
+            gemini_model="gpt-5.6-luna",
+        )
+    with pytest.raises(ConfigurationError, match="OPENAI_MODEL"):
+        Settings(
+            "openai-key",
+            "secret",
+            "token",
+            ai_provider="openai",
+            openai_model="gemma-4-31b-it",
+        )
+
+
 def test_invalid_provider_is_rejected(monkeypatch, tmp_path):
     _clear(monkeypatch)
     env_file = tmp_path / ".env"

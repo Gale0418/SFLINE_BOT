@@ -13,6 +13,7 @@ REQUIRED_SECRET_NAMES = (
     "LINE_CHANNEL_ACCESS_TOKEN",
 )
 _AI_PROVIDERS = {"auto", "google", "openai"}
+_GOOGLE_MODEL_PREFIXES = ("gemma-", "gemini-")
 _REPLY_TOKEN_BUDGET_SECONDS = 55.0
 
 
@@ -31,6 +32,10 @@ def _worst_case_serial_units(
         chain + math.ceil(max(0, total_capacity - chain) / worker_count)
         for chain in range(1, max_chain + 1)
     )
+
+
+def _is_google_model(model: str) -> bool:
+    return model.startswith(_GOOGLE_MODEL_PREFIXES)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,14 +80,19 @@ class Settings:
             if not google_key:
                 raise ConfigurationError("AI_PROVIDER=google 需要 GEMINI_API_KEY")
             google_model = self.gemini_model.strip() or "gemma-4-31b-it"
+            if not _is_google_model(google_model):
+                raise ConfigurationError("GEMINI_MODEL 必須是 gemma-* 或 gemini-* 模型 ID")
             object.__setattr__(self, "ai_provider", "google")
             object.__setattr__(self, "openai_api_key", google_key)
             object.__setattr__(self, "openai_model", google_model)
         else:
             if not self.openai_api_key.strip():
                 raise ConfigurationError("AI_PROVIDER=openai 需要 OPENAI_API_KEY")
+            openai_model = self.openai_model.strip() or "gpt-5.6-luna"
+            if _is_google_model(openai_model):
+                raise ConfigurationError("OPENAI_MODEL 不可使用 gemma-* 或 gemini-* 模型 ID")
             object.__setattr__(self, "ai_provider", "openai")
-            object.__setattr__(self, "openai_model", self.openai_model.strip() or "gpt-5.6-luna")
+            object.__setattr__(self, "openai_model", openai_model)
 
         if self.openai_timeout_seconds <= 0 or not 1 <= self.app_port <= 65535:
             raise ConfigurationError("APP_PORT 或 MODEL_TIMEOUT_SECONDS 超出允許範圍")

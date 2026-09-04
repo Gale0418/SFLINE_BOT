@@ -88,7 +88,7 @@ def test_openai_uses_structured_output_and_store_false(knowledge):
     assert "來源：" in render_answer(answer, knowledge)
 
 
-def test_gemma_4_31b_uses_google_free_api_contract(knowledge):
+def test_gemma_4_31b_uses_documented_google_contract_without_schema_gamble(knowledge):
     card = next(card for card in knowledge.cards if card.label is ScienceLabel.OBSERVED_VERIFIED)
     client = FakeGoogleClient(
         {"label": card.label.value, "answer": "這是 Gemma 受知識庫約束的回答。", "source_ids": [card.id]}
@@ -103,10 +103,27 @@ def test_gemma_4_31b_uses_google_free_api_contract(knowledge):
     assert client.headers["x-goog-api-key"] == "google-key"
     config = client.body["generationConfig"]
     assert config["thinkingConfig"] == {"thinkingLevel": "minimal"}
+    assert "responseFormat" not in config
+    assert "永恆北極星" in client.body["systemInstruction"]["parts"][0]["text"]
+    prompt_text = client.body["contents"][0]["parts"][0]["text"]
+    assert "只輸出一個 JSON object" in prompt_text
+    assert client.response.raise_calls == 1
+
+
+def test_gemini_google_backend_uses_structured_output(knowledge):
+    card = next(card for card in knowledge.cards if card.label is ScienceLabel.OBSERVED_VERIFIED)
+    client = FakeGoogleClient(
+        {"label": card.label.value, "answer": "這是 Gemini 結構化回答。", "source_ids": [card.id]}
+    )
+    service = OpenAIAnswerService("google-key", "gemini-3.6-flash", knowledge, client=client)
+    answer = service.answer(card.canonical_question, ())
+    assert answer.source_ids == (card.id,)
+    config = client.body["generationConfig"]
     assert config["responseFormat"]["text"]["mimeType"] == "application/json"
     schema = config["responseFormat"]["text"]["schema"]
-    assert "maxLength" not in schema["properties"]["answer"]
-    assert client.response.raise_calls == 1
+    assert schema["additionalProperties"] is False
+    assert schema["properties"]["source_ids"]["maxItems"] == 3
+    assert "thinkingConfig" not in config
 
 
 def test_google_response_ignores_thought_parts(knowledge):
@@ -131,7 +148,6 @@ def test_hybrid_uses_local_card_for_exact_question(knowledge):
 
 
 def test_hybrid_does_not_steal_operational_prompt(knowledge):
-    card = knowledge.cards[0]
     fallback_answer = BotAnswer(ScienceLabel.OUT_OF_SCOPE, "拒答", (), route="model")
     fallback = RecordingProvider(fallback_answer)
     service = HybridAnswerService(fallback, knowledge)

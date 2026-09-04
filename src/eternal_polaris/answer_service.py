@@ -38,8 +38,9 @@ ANSWER_SCHEMA = {
     "additionalProperties": False,
 }
 
-# Gemini generateContent supports a JSON Schema subset. ``maxLength`` and
-# ``minLength`` are intentionally enforced locally instead of sent upstream.
+# Gemini structured output supports a JSON Schema subset. String length is
+# intentionally enforced locally, while enum/required/maxItems remain useful
+# provider-side constraints.
 GOOGLE_ANSWER_SCHEMA = {
     "type": "object",
     "properties": {
@@ -92,11 +93,11 @@ def _google_output_text(payload: dict[str, Any]) -> str:
 
 
 class OpenAIAnswerService:
-    """Bounded model fallback supporting OpenAI Responses and Google Gemma API.
+    """Bounded model fallback supporting OpenAI Responses and Google API.
 
-    The existing class name is kept for compatibility with the application
-    wiring. ``gemma-*`` and ``gemini-*`` model IDs automatically use Google's
-    Gemini Developer API; all other model IDs use OpenAI Responses.
+    The class name is retained for compatibility with the existing app wiring.
+    ``gemma-*`` and ``gemini-*`` IDs use Gemini Developer API; other model IDs
+    use OpenAI Responses.
     """
 
     def __init__(
@@ -132,8 +133,7 @@ class OpenAIAnswerService:
             "長輩感來自耐心與判斷，不要每句稱呼孩子、不要堆砌古風台詞，也不要自稱有意識。"
             "對誤解要溫和糾正，對未知與限制要明說；不得用術語煙霧掩飾。"
             "只能使用下列知識卡的事實，不得使用即時網路、內部常識或捏造資料。"
-            "若問題不屬於天文、地球與生命科學、物理、未來科技或科幻物理，"
-            "label 必須是 out_of_scope，source_ids 必須為空陣列。"
+            "若知識卡沒有足夠資訊支持答案，label 必須是 out_of_scope，source_ids 必須為空陣列。"
             "範圍內回答只能引用真正支持答案的卡片 ID。"
             "observed_verified 代表已有觀測或實驗證據；theoretical_unrealized 代表有理論描述但未實現；"
             "science_fiction 代表作品設定或超出現有理論支持。若比較多種狀態，先逐項說清楚，再選主要結論作 label。\n\n"
@@ -194,18 +194,29 @@ class OpenAIAnswerService:
             "https://generativelanguage.googleapis.com/v1beta/models/"
             f"{model_id}:generateContent"
         )
-        generation_config: dict[str, Any] = {
-            "maxOutputTokens": 350,
-            "responseFormat": {
+        generation_config: dict[str, Any] = {"maxOutputTokens": 350}
+        is_gemma_4 = self._model.startswith("gemma-4-")
+        if is_gemma_4:
+            # Google documents Gemma 4 thinking and system instructions, but
+            # its structured-output support matrix currently does not list
+            # Gemma 4. Keep the request on the documented surface and perform
+            # strict JSON/semantic validation locally instead of gambling on an
+            # unsupported response schema.
+            generation_config["thinkingConfig"] = {"thinkingLevel": "minimal"}
+        else:
+            generation_config["responseFormat"] = {
                 "text": {
                     "mimeType": "application/json",
                     "schema": GOOGLE_ANSWER_SCHEMA,
                 }
-            },
-        }
-        if self._model.startswith("gemma-4-"):
-            generation_config["thinkingConfig"] = {"thinkingLevel": "minimal"}
+            }
 
+        format_instruction = (
+            "只輸出一個 JSON object，不要 Markdown code fence，也不要 JSON 以外文字。"
+            "鍵只能有 label、answer、source_ids。"
+            "label 只能是 observed_verified、theoretical_unrealized、science_fiction、out_of_scope。"
+            "answer 必須是非空字串；source_ids 必須是最多三個字串的陣列。"
+        )
         response = self._client.post(
             url,
             headers={
@@ -216,17 +227,10 @@ class OpenAIAnswerService:
                 "contents": [
                     {
                         "role": "user",
-                        "parts": [
-                            {
-                                "text": (
-                                    self._instructions
-                                    + "\n\n請只輸出符合指定 JSON schema 的答案。\n\n"
-                                    + prompt
-                                )
-                            }
-                        ],
+                        "parts": [{"text": format_instruction + "\n\n" + prompt}],
                     }
                 ],
+                "systemInstruction": {"parts": [{"text": self._instructions}]},
                 "generationConfig": generation_config,
             },
         )
