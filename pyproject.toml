@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eternal-polaris-line-bot"
-version = "0.1.0"
-description = "永恆北極星：LINE 天文與科幻物理問答機器人"
+version = "0.2.0"
+description = "永恆北極星：LINE 跨域科學問答與星之試煉機器人"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
@@ -35,4 +35,18 @@ eternal_polaris = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --disable-warnings"
+addopts = "-q --disable-warnings --strict-markers"
+
+[tool.coverage.run]
+branch = true
+source = ["eternal_polaris"]
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+skip_covered = true
+exclude_lines = [
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:",
+  "\.\.\.",
+]

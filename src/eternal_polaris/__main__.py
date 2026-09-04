@@ -12,7 +12,12 @@ def main() -> None:
     except ConfigurationError as exc:
         raise SystemExit(str(exc)) from exc
     app = create_app(settings)
-    serve(app, host="127.0.0.1", port=settings.app_port, threads=4)
+    dispatcher = app.extensions.get("event_dispatcher")
+    try:
+        serve(app, host="127.0.0.1", port=settings.app_port, threads=4)
+    finally:
+        if dispatcher is not None:
+            dispatcher.shutdown(wait=True)
 
 
 if __name__ == "__main__":

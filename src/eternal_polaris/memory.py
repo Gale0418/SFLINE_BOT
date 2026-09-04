@@ -71,8 +71,14 @@ class ConversationMemory:
 
 
 class EventDeduplicator:
-    def __init__(self, ttl_seconds: int = 600, clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(
+        self,
+        ttl_seconds: int = 600,
+        max_events: int = 10_000,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         self._ttl_seconds = ttl_seconds
+        self._max_events = max_events
         self._clock = clock
         self._seen: dict[str, float] = {}
         self._lock = threading.Lock()
@@ -82,11 +88,12 @@ class EventDeduplicator:
             return True
         now = self._clock()
         with self._lock:
-            expired = [key for key, seen_at in self._seen.items() if now - seen_at > self._ttl_seconds]
-            for key in expired:
-                self._seen.pop(key, None)
+            self._purge_expired(now)
             if event_id in self._seen:
                 return False
+            if len(self._seen) >= self._max_events:
+                oldest = min(self._seen, key=self._seen.get)  # type: ignore[arg-type]
+                self._seen.pop(oldest, None)
             self._seen[event_id] = now
             return True
 
@@ -95,3 +102,8 @@ class EventDeduplicator:
             return
         with self._lock:
             self._seen.pop(event_id, None)
+
+    def _purge_expired(self, now: float) -> None:
+        expired = [key for key, seen_at in self._seen.items() if now - seen_at > self._ttl_seconds]
+        for key in expired:
+            self._seen.pop(key, None)

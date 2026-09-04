@@ -1,0 +1,109 @@
+name: Certify final science vault
+
+on:
+  workflow_run:
+    workflows: ['Main CI']
+    types: [completed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: certify-final-science-vault
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Recheck static release invariants
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          rows = json.loads(Path('data/quiz_questions.json').read_text(encoding='utf-8'))
+          assert len(rows) == 96
+          assert len({row['id'] for row in rows}) == 96
+          assert len(Counter(row['topic'] for row in rows)) == 16
+          assert set(Counter(row['topic'] for row in rows).values()) == {6}
+          assert len(Counter((row['vault'], row['difficulty']) for row in rows)) == 12
+          assert set(Counter((row['vault'], row['difficulty']) for row in rows).values()) == {8}
+          assert Counter(row['correct_index'] for row in rows) == Counter({0: 24, 1: 24, 2: 24, 3: 24})
+
+          required = {
+              'src/eternal_polaris/quiz.py',
+              'src/eternal_polaris/persona.py',
+              'src/eternal_polaris/interaction.py',
+              'src/eternal_polaris/dispatcher.py',
+              'scripts/strict_audit.py',
+              'docs/strict-review-prompt.md',
+              '.github/workflows/ci.yml',
+          }
+          assert all(Path(path).is_file() for path in required)
+
+          forbidden = {
+              'docs/push-files-probe-a.txt',
+              'docs/push-files-probe-b.txt',
+              'docs/push-files-probe-c.txt',
+              'docs/push-files-probe-do-not-keep.txt',
+              'scripts/apply_strict_review_v2.py',
+              'scripts/apply_strict_review_v3.py',
+              'scripts/finalize_strict_hardening_v4.py',
+              '.github/workflows/finalize-strict-hardening.yml',
+              '.github/workflows/finalize-strict-hardening-v4.yml',
+              '.github/workflows/cleanup-and-certify-strict-hardening.yml',
+              '.github/workflows/strict-certification.yml',
+              '.github/workflows/strict-main-verification.yml',
+              '.github/workflows/bootstrap-guardian-quiz.yml',
+              '.github/workflows/bootstrap-guardian-quiz-v2.yml',
+              '.github/workflows/publish-reviewed-guardian-quiz.yml',
+              '.github/workflows/publish-final-science-vault.yml',
+          }
+          assert not any(Path(path).exists() for path in forbidden)
+          PY
+
+      - name: Write certificate without commit loop
+        run: |
+          set -euo pipefail
+          mkdir -p docs
+          cat > docs/release-certificate.md <<'EOF'
+          # 永恆北極星：群星寶庫發布憑證
+
+          這份固定內容只有在 **Main CI** 成功後，才由 `Certify final science vault` 工作流程建立。
+
+          已驗證契約：
+
+          - 96 題固定正解、固定解說、可追溯來源的科普題庫
+          - 16 個主題，涵蓋天文、地球科學、生命科學、物理與工程
+          - 4 座內容寶庫、3 種難度，每個「寶庫 × 難度」各 8 題
+          - A／B／C／D 各自正確 24 次
+          - 確定性的幫助、挑戰、規則、分數與退出路由
+          - 和藹長輩／寶庫守門人的情境式人格
+          - HMAC 綁定作答，阻擋竄改、跨使用者、過期與重播
+          - 驗證後快速接收 Webhook、同使用者 FIFO、有界佇列
+          - 不含測試探針或一次性 finalizer 殘留
+
+          此憑證不宣稱已完成實體手機 LINE 驗收，也不宣稱已完成需付費額度的 OpenAI 線上評估；兩者仍是外部驗收項目。
+          EOF
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/release-certificate.md
+          if git diff --cached --quiet; then
+            echo 'Release certificate is already current.'
+            exit 0
+          fi
+          git commit -m 'Certify final guardian quiz release'
+          git push origin HEAD:main

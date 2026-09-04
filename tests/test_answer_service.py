@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
-from eternal_polaris.answer_service import OpenAIAnswerService, render_answer
-from eternal_polaris.models import ScienceLabel
+from eternal_polaris.answer_service import HybridAnswerService, OpenAIAnswerService, render_answer
+from eternal_polaris.models import BotAnswer, ScienceLabel
 
 
 class FakeResponses:
@@ -17,6 +17,16 @@ class FakeResponses:
         return SimpleNamespace(output_text=json.dumps(self.payload, ensure_ascii=False))
 
 
+class RecordingProvider:
+    def __init__(self, answer):
+        self.answer_value = answer
+        self.calls = 0
+
+    def answer(self, question, history):
+        self.calls += 1
+        return self.answer_value
+
+
 def test_openai_uses_structured_output_and_store_false(knowledge):
     card = next(card for card in knowledge.cards if card.label is ScienceLabel.OBSERVED_VERIFIED)
     responses = FakeResponses(
@@ -26,8 +36,29 @@ def test_openai_uses_structured_output_and_store_false(knowledge):
     service = OpenAIAnswerService("key", "gpt-5.6-luna", knowledge, client=client)
     answer = service.answer(card.canonical_question, ())
     assert answer.source_ids == (card.id,)
+    assert answer.route == "model"
     assert responses.kwargs["store"] is False
     assert responses.kwargs["reasoning"] == {"effort": "none"}
     assert "temperature" not in responses.kwargs
     assert responses.kwargs["text"]["format"]["type"] == "json_schema"
     assert "來源：" in render_answer(answer, knowledge)
+
+
+def test_hybrid_uses_local_card_for_exact_question(knowledge):
+    card = knowledge.cards[0]
+    fallback = RecordingProvider(BotAnswer(card.label, "不應呼叫", (card.id,)))
+    service = HybridAnswerService(fallback, knowledge)
+    answer = service.answer(card.canonical_question, ())
+    assert answer.route == "local"
+    assert answer.source_ids == (card.id,)
+    assert fallback.calls == 0
+
+
+def test_hybrid_does_not_steal_operational_prompt(knowledge):
+    card = knowledge.cards[0]
+    fallback_answer = BotAnswer(ScienceLabel.OUT_OF_SCOPE, "拒答", (), route="model")
+    fallback = RecordingProvider(fallback_answer)
+    service = HybridAnswerService(fallback, knowledge)
+    answer = service.answer("幫我寫一個黑洞遊戲程式", ())
+    assert answer is fallback_answer
+    assert fallback.calls == 1

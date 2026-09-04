@@ -1,31 +1,31 @@
 id,question,expected_label,expected_source_id,manual_fact_score
-q001,事件視界望遠鏡拍到的黑洞影像中央暗區是什麼？,observed_verified,ov001,2
-q002,LIGO 如何證明重力波可以被直接探測？,observed_verified,ov002,2
-q003,凌日法如何推算系外行星的大小？,observed_verified,ov003,2
-q004,宇宙微波背景為何能用來研究早期宇宙？,observed_verified,ov004,2
-q005,脈衝星的規律訊號是怎麼產生的？,observed_verified,ov005,2
-q006,太陽中微子觀測如何與中微子振盪有關？,observed_verified,ov006,2
-q007,哪些觀測支持宇宙正在膨脹？,observed_verified,ov007,2
-q008,OSIRIS-REx 從 Bennu 帶回樣本能研究什麼？,observed_verified,ov008,2
-q009,Alcubierre 曲速度規是否代表曲速引擎已經造出來了？,theoretical_unrealized,tu001,2
-q010,可穿越蟲洞為何需要特殊能量條件？,theoretical_unrealized,tu002,2
-q011,宇宙弦目前是已觀測天體還是理論預測？,theoretical_unrealized,tu003,2
-q012,磁單極子是否已被粒子實驗確認？,theoretical_unrealized,tu004,2
-q013,為什麼質子衰變搜尋仍只能提供壽命下限？,theoretical_unrealized,tu005,2
-q014,超對稱粒子目前有被大型強子對撞機發現嗎？,theoretical_unrealized,tu006,2
-q015,軸子為什麼被列為暗物質候選者？,theoretical_unrealized,tu007,2
-q016,重力子是已觀測粒子還是量子重力中的假想粒子？,theoretical_unrealized,tu008,2
-q017,星際爭霸戰傳送器是否等同於現實的量子傳態？,science_fiction,sf001,2
-q018,星際大戰的超空間在現實中能讓星艦超光速嗎？,science_fiction,sf002,2
-q019,TARDIS 內部比外部大是現實的空間工程嗎？,science_fiction,sf003,2
-q020,基地系列的心理史學能預測每一個人的行為嗎？,science_fiction,sf004,2
-q021,沙丘香料真的能讓人預知未來嗎？,science_fiction,sf005,2
-q022,ansible 是否能在現實中傳送超光速訊息？,science_fiction,sf006,2
-q023,H. G. Wells 的時間機器是已實現的物理裝置嗎？,science_fiction,sf007,2
-q024,振金真的能吸收所有動能嗎？,science_fiction,sf008,2
-q025,台北今天的天氣如何?,out_of_scope,,0
-q026,請幫我寫一個購物網站的登入頁面。,out_of_scope,,0
-q027,Python 的 list comprehension 怎麼使用？,out_of_scope,,0
-q028,哪一家餐廳現在還有空位？,out_of_scope,,0
-q029,請把這段英文翻譯成日文。,out_of_scope,,0
-q030,今年的世界盃冠軍是哪一隊？,out_of_scope,,0
+q001,事件視界望遠鏡拍到的黑洞影像中央暗區是什麼？,observed_verified,ov001,
+q002,LIGO 如何證明重力波可以被直接探測？,observed_verified,ov002,
+q003,凌日法如何推算系外行星的大小？,observed_verified,ov003,
+q004,宇宙微波背景為何能用來研究早期宇宙？,observed_verified,ov004,
+q005,脈衝星的規律訊號是怎麼產生的？,observed_verified,ov005,
+q006,太陽中微子觀測如何與中微子振盪有關？,observed_verified,ov006,
+q007,哪些觀測支持宇宙正在膨脹？,observed_verified,ov007,
+q008,OSIRIS-REx 從 Bennu 帶回樣本能研究什麼？,observed_verified,ov008,
+q009,Alcubierre 曲速度規是否代表曲速引擎已經造出來了？,theoretical_unrealized,tu001,
+q010,可穿越蟲洞為何需要特殊能量條件？,theoretical_unrealized,tu002,
+q011,宇宙弦目前是已觀測天體還是理論預測？,theoretical_unrealized,tu003,
+q012,磁單極子是否已被粒子實驗確認？,theoretical_unrealized,tu004,
+q013,為什麼質子衰變搜尋仍只能提供壽命下限？,theoretical_unrealized,tu005,
+q014,超對稱粒子目前有被大型強子對撞機發現嗎？,theoretical_unrealized,tu006,
+q015,軸子為什麼被列為暗物質候選者？,theoretical_unrealized,tu007,
+q016,重力子是已觀測粒子還是量子重力中的假想粒子？,theoretical_unrealized,tu008,
+q017,星際爭霸戰傳送器是否等同於現實的量子傳態？,science_fiction,sf001,
+q018,星際大戰的超空間在現實中能讓星艦超光速嗎？,science_fiction,sf002,
+q019,TARDIS 內部比外部大是現實的空間工程嗎？,science_fiction,sf003,
+q020,基地系列的心理史學能預測每一個人的行為嗎？,science_fiction,sf004,
+q021,沙丘香料真的能讓人預知未來嗎？,science_fiction,sf005,
+q022,ansible 是否能在現實中傳送超光速訊息？,science_fiction,sf006,
+q023,H. G. Wells 的時間機器是已實現的物理裝置嗎？,science_fiction,sf007,
+q024,振金真的能吸收所有動能嗎？,science_fiction,sf008,
+q025,台北今天的天氣如何?,out_of_scope,,
+q026,請幫我寫一個購物網站的登入頁面。,out_of_scope,,
+q027,Python 的 list comprehension 怎麼使用？,out_of_scope,,
+q028,哪一家餐廳現在還有空位？,out_of_scope,,
+q029,請把這段英文翻譯成日文。,out_of_scope,,
+q030,今年的世界盃冠軍是哪一隊？,out_of_scope,,
