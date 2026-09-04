@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
-from typing import Protocol
+from typing import Any, Protocol
+from urllib.parse import quote
 
+import httpx
 from openai import OpenAI
 
 from .knowledge import KnowledgeBase
@@ -36,20 +38,92 @@ ANSWER_SCHEMA = {
     "additionalProperties": False,
 }
 
+# Gemini generateContent supports a JSON Schema subset. ``maxLength`` and
+# ``minLength`` are intentionally enforced locally instead of sent upstream.
+GOOGLE_ANSWER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "label": {"type": "string", "enum": [label.value for label in ScienceLabel]},
+        "answer": {"type": "string"},
+        "source_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+            "maxItems": 3,
+        },
+    },
+    "required": ["label", "answer", "source_ids"],
+    "additionalProperties": False,
+}
+
+
+def _parse_json_payload(text: str) -> dict[str, Any]:
+    cleaned = text.strip()
+    if cleaned.startswith("```") and cleaned.endswith("```"):
+        lines = cleaned.splitlines()
+        if len(lines) >= 3:
+            cleaned = "\n".join(lines[1:-1]).strip()
+    raw = json.loads(cleaned)
+    if not isinstance(raw, dict):
+        raise ValueError("模型輸出必須是 JSON object")
+    return raw
+
+
+def _google_output_text(payload: dict[str, Any]) -> str:
+    candidates = payload.get("candidates")
+    if not isinstance(candidates, list) or not candidates:
+        raise ValueError("Google API 未回傳候選答案")
+    content = candidates[0].get("content")
+    if not isinstance(content, dict):
+        raise ValueError("Google API 回傳格式缺少 content")
+    parts = content.get("parts")
+    if not isinstance(parts, list):
+        raise ValueError("Google API 回傳格式缺少 parts")
+    text_parts = [
+        str(part["text"])
+        for part in parts
+        if isinstance(part, dict)
+        and not part.get("thought")
+        and isinstance(part.get("text"), str)
+    ]
+    text = "".join(text_parts).strip()
+    if not text:
+        raise ValueError("Google API 未回傳文字答案")
+    return text
+
 
 class OpenAIAnswerService:
+    """Bounded model fallback supporting OpenAI Responses and Google Gemma API.
+
+    The existing class name is kept for compatibility with the application
+    wiring. ``gemma-*`` and ``gemini-*`` model IDs automatically use Google's
+    Gemini Developer API; all other model IDs use OpenAI Responses.
+    """
+
     def __init__(
         self,
         api_key: str,
         model: str,
         knowledge: KnowledgeBase,
         timeout_seconds: float = 5.0,
-        client: OpenAI | None = None,
+        client: Any | None = None,
     ) -> None:
-        self._client = client or OpenAI(api_key=api_key, timeout=timeout_seconds, max_retries=0)
+        self._api_key = api_key
         self._model = model
         self._knowledge = knowledge
         self._instructions = self._build_instructions()
+        self._google_backend = model.startswith(("gemma-", "gemini-"))
+        if self._google_backend:
+            self._client = client or httpx.Client(timeout=timeout_seconds)
+        else:
+            self._client = client or OpenAI(
+                api_key=api_key,
+                timeout=timeout_seconds,
+                max_retries=0,
+            )
+
+    @property
+    def provider_name(self) -> str:
+        return "google" if self._google_backend else "openai"
 
     def _build_instructions(self) -> str:
         return (
@@ -66,11 +140,36 @@ class OpenAIAnswerService:
             "知識卡：\n" + self._knowledge.prompt_context()
         )
 
-    def answer(self, question: str, history: tuple[Exchange, ...]) -> BotAnswer:
+    def _prompt(self, question: str, history: tuple[Exchange, ...]) -> str:
         history_text = "\n".join(
             f"使用者：{exchange.user}\n永恆北極星：{exchange.assistant}" for exchange in history
         )
-        prompt = f"最近三組對話：\n{history_text or '（無）'}\n\n本次問題：{question}"
+        return f"最近三組對話：\n{history_text or '（無）'}\n\n本次問題：{question}"
+
+    def _validate_raw_answer(self, raw: dict[str, Any]) -> BotAnswer:
+        answer_text = str(raw["answer"]).strip()
+        if not 1 <= len(answer_text) <= 700:
+            raise ValueError("模型答案長度超出允許範圍")
+        source_ids = raw["source_ids"]
+        if not isinstance(source_ids, list):
+            raise ValueError("source_ids 必須是陣列")
+        answer = BotAnswer(
+            label=ScienceLabel(raw["label"]),
+            answer=answer_text,
+            source_ids=tuple(str(value) for value in source_ids),
+            route="model",
+        )
+        return self._knowledge.validate_answer(answer)
+
+    def answer(self, question: str, history: tuple[Exchange, ...]) -> BotAnswer:
+        prompt = self._prompt(question, history)
+        if self._google_backend:
+            raw = self._answer_google(prompt)
+        else:
+            raw = self._answer_openai(prompt)
+        return self._validate_raw_answer(raw)
+
+    def _answer_openai(self, prompt: str) -> dict[str, Any]:
         response = self._client.responses.create(
             model=self._model,
             instructions=self._instructions,
@@ -87,14 +186,55 @@ class OpenAIAnswerService:
                 }
             },
         )
-        raw = json.loads(response.output_text)
-        answer = BotAnswer(
-            label=ScienceLabel(raw["label"]),
-            answer=str(raw["answer"]).strip(),
-            source_ids=tuple(str(value) for value in raw["source_ids"]),
-            route="model",
+        return _parse_json_payload(response.output_text)
+
+    def _answer_google(self, prompt: str) -> dict[str, Any]:
+        model_id = quote(self._model, safe="-._")
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{model_id}:generateContent"
         )
-        return self._knowledge.validate_answer(answer)
+        generation_config: dict[str, Any] = {
+            "maxOutputTokens": 350,
+            "responseFormat": {
+                "text": {
+                    "mimeType": "application/json",
+                    "schema": GOOGLE_ANSWER_SCHEMA,
+                }
+            },
+        }
+        if self._model.startswith("gemma-4-"):
+            generation_config["thinkingConfig"] = {"thinkingLevel": "minimal"}
+
+        response = self._client.post(
+            url,
+            headers={
+                "x-goog-api-key": self._api_key,
+                "Content-Type": "application/json",
+            },
+            json={
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "text": (
+                                    self._instructions
+                                    + "\n\n請只輸出符合指定 JSON schema 的答案。\n\n"
+                                    + prompt
+                                )
+                            }
+                        ],
+                    }
+                ],
+                "generationConfig": generation_config,
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ValueError("Google API 回傳格式無效")
+        return _parse_json_payload(_google_output_text(payload))
 
 
 class HybridAnswerService:

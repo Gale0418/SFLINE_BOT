@@ -6,16 +6,21 @@ import tempfile
 from pathlib import Path
 
 
-REQUIRED_NAMES = (
+COMMON_REQUIRED_NAMES = (
     "NGROK_AUTHTOKEN",
-    "OPENAI_API_KEY",
     "LINE_CHANNEL_SECRET",
     "LINE_CHANNEL_ACCESS_TOKEN",
 )
+AI_SECRET_NAMES = ("GEMINI_API_KEY", "OPENAI_API_KEY")
+RECOGNIZED_NAMES = COMMON_REQUIRED_NAMES + AI_SECRET_NAMES + ("GOOGLE_API_KEY",)
 
 
 class SecretMigrationError(RuntimeError):
     pass
+
+
+def _normalize_name(name: str) -> str:
+    return "GEMINI_API_KEY" if name == "GOOGLE_API_KEY" else name
 
 
 def _parse_source(path: Path, *, allow_single_ngrok_token: bool) -> dict[str, str]:
@@ -30,8 +35,11 @@ def _parse_source(path: Path, *, allow_single_ngrok_token: bool) -> dict[str, st
         if "=" not in stripped:
             unnamed.append(stripped)
             continue
-        name, value = (part.strip() for part in stripped.split("=", 1))
-        if name not in REQUIRED_NAMES or not value or name in named:
+        raw_name, value = (part.strip() for part in stripped.split("=", 1))
+        if raw_name not in RECOGNIZED_NAMES or not value:
+            raise SecretMigrationError(f"來源檔格式不明：{path.name}")
+        name = _normalize_name(raw_name)
+        if name in named:
             raise SecretMigrationError(f"來源檔格式不明：{path.name}")
         named[name] = value
     if unnamed:
@@ -50,17 +58,32 @@ def migrate(ngrok_source: Path, app_source: Path, output: Path) -> tuple[str, ..
         if name in merged:
             raise SecretMigrationError(f"設定重複：{name}")
         merged[name] = value
-    missing = [name for name in REQUIRED_NAMES if not merged.get(name, "").strip()]
+
+    missing = [name for name in COMMON_REQUIRED_NAMES if not merged.get(name, "").strip()]
     if missing:
         raise SecretMigrationError("缺少必要設定：" + ", ".join(missing))
+    if not any(merged.get(name, "").strip() for name in AI_SECRET_NAMES):
+        raise SecretMigrationError("缺少 AI 金鑰：請提供 GEMINI_API_KEY 或 OPENAI_API_KEY")
+
+    names_to_write = tuple(
+        name
+        for name in COMMON_REQUIRED_NAMES + AI_SECRET_NAMES
+        if merged.get(name, "").strip()
+    )
 
     output.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(prefix=".env.", dir=output.parent, text=True)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            for name in REQUIRED_NAMES:
+            for name in names_to_write:
                 handle.write(f"{name}={merged[name]}\n")
-            handle.write("OPENAI_MODEL=gpt-5.6-luna\nAPP_PORT=5000\nOPENAI_TIMEOUT_SECONDS=15\n")
+            handle.write(
+                "AI_PROVIDER=auto\n"
+                "GEMINI_MODEL=gemma-4-31b-it\n"
+                "OPENAI_MODEL=gpt-5.6-luna\n"
+                "MODEL_TIMEOUT_SECONDS=5\n"
+                "APP_PORT=5000\n"
+            )
             handle.flush()
             os.fsync(handle.fileno())
         try:
@@ -74,7 +97,7 @@ def migrate(ngrok_source: Path, app_source: Path, output: Path) -> tuple[str, ..
         finally:
             pass
         raise
-    return REQUIRED_NAMES
+    return names_to_write
 
 
 def main() -> None:
