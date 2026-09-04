@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eternal-polaris-line-bot"
-version = "0.2.0"
+version = "0.3.0"
 description = "永恆北極星：LINE 跨域科學問答與星之試煉機器人"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
   "Flask>=3.1,<4",
+  "httpx>=0.28,<1",
   "line-bot-sdk>=3.25,<4",
   "openai>=2.0,<3",
   "python-dotenv>=1.1,<2",
@@ -48,5 +49,5 @@ skip_covered = true
 exclude_lines = [
   "if TYPE_CHECKING:",
   "if __name__ == .__main__.:",
-  "\.\.\.",
+  '\.\.\.',
 ]

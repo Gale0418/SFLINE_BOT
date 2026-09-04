@@ -43,6 +43,11 @@ def _event_body(event_type: str, *, data: str = "", text: str = "", event_id: st
         event["postback"] = {"data": data}
     elif event_type == "message":
         event["message"] = {"id": "m-1", "type": "text", "text": text, "quoteToken": "q-1"}
+    elif event_type == "follow":
+        # LINE's current Follow event schema includes this object. Keep fixture
+        # payloads faithful to the provider contract so parser regressions are
+        # not hidden behind malformed synthetic events.
+        event["follow"] = {"isUnblocked": False}
     payload = {"destination": "U-bot", "events": [event]}
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
