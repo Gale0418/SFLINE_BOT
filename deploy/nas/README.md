@@ -5,7 +5,8 @@
 - `app/`：目前程式碼與 Docker 建置內容。
 - `data/private/`：SQLite 導引學習進度；升級不得覆蓋。
 - `backups/`：資料庫備份。
-- `.env`：秘密設定，權限必須為 `600`。
+- `.env`：Bot 的 LINE 與 AI 秘密設定，權限必須為 `600`。
+- `ngrok.env`：只含 `NGROK_AUTHTOKEN`，由 `ngrok.env.example` 複製，權限必須為 `600`。
 
 容器 `eternal-polaris-bot` 只在 NAS loopback `127.0.0.1:5050` 提供健康檢查；`eternal-polaris-ngrok` 使用既有固定網域把 LINE webhook 導向 bot。兩者皆使用 `restart: unless-stopped`。
 
@@ -19,7 +20,9 @@ sudo install -d -o 1026 -g 100 -m 0750 /volume1/docker/eternal-polaris/backups
 test -w /volume1/docker/eternal-polaris/data/private
 ```
 
-`ngrok` 服務只會取得 `NGROK_AUTHTOKEN`；LINE 與 AI 金鑰只注入 `bot` 容器。部署後可用 `docker compose exec bot test -w /app/data/private` 做寫入權限 preflight。
+`ngrok` 服務只會讀取獨立的 `ngrok.env`；LINE 與 AI 金鑰只注入 `bot` 容器。部署前執行 `cp ngrok.env.example ngrok.env`，只填入 ngrok token，再將檔案設為 `600`。部署後可用 `docker compose exec bot test -w /app/data/private` 做寫入權限 preflight。
+
+若 `/ready` 因 `ProcessInterruptedUnknown` 回 503，代表上次程序在事件處理中斷；系統不會冒險重送一次性 LINE 回覆。管理者可在一小時內於 `webhooks.sqlite3` 檢查 `state='interrupted'` 的隔離事件，完成判斷後刪除該列；一小時後 payload 會自動清除，事件 ID 最長保留七天。
 
 ## 備份與還原演練
 
@@ -31,4 +34,4 @@ docker compose -f deploy/nas/compose.yaml exec -T bot \
   python /app/scripts/backup_sqlite.py --data-dir /app/data/private --backup-dir /app/backups --keep 14
 ```
 
-每次備份都會執行 `PRAGMA integrity_check` 並產生 SHA-256 manifest。每月至少把最新一份備份還原到暫存目錄，重新執行 `PRAGMA integrity_check` 與一輪導引學習 smoke test；未完成還原演練的檔案不能稱為可用備份。
+每次備份都會執行 `PRAGMA integrity_check` 並產生 SHA-256 manifest。Webhook inbox 含短期訊息與 reply token，刻意不納入長期備份；只有學習進度會備份。每月至少把最新一份備份還原到暫存目錄，重新執行 `PRAGMA integrity_check` 與一輪導引學習 smoke test；未完成還原演練的檔案不能稱為可用備份。

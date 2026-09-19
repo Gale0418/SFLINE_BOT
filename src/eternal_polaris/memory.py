@@ -139,14 +139,17 @@ class RequestRateLimiter:
         with self._lock:
             while self._all and self._all[0] <= cutoff:
                 self._all.popleft()
+            for stale_key, stale_bucket in tuple(self._users.items()):
+                while stale_bucket and stale_bucket[0] <= cutoff:
+                    stale_bucket.popleft()
+                if not stale_bucket:
+                    self._users.pop(stale_key, None)
             bucket = self._users.get(key)
             if bucket is None:
                 if len(self._users) >= self._max_users:
-                    self._users.pop(next(iter(self._users)))
+                    return False
                 bucket = deque()
                 self._users[key] = bucket
-            while bucket and bucket[0] <= cutoff:
-                bucket.popleft()
             if len(bucket) >= self._per_user or len(self._all) >= self._global:
                 return False
             bucket.append(now)

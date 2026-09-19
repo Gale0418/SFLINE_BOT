@@ -3,6 +3,7 @@ from __future__ import annotations
 import itertools
 import json
 import logging
+import os
 import sqlite3
 import threading
 import time
@@ -20,6 +21,10 @@ from .line_gateway import AmbiguousReplyError
 
 EventHandler = Callable[[Any], None]
 EventKeyFunction = Callable[[Any], str]
+
+
+class RetryablePreReplyError(RuntimeError):
+    """A proven pre-reply failure that is safe to execute again."""
 
 
 class EventDispatcher(Protocol):
@@ -190,6 +195,7 @@ class DurableEventDispatcher:
         self._handler: EventHandler | None = None
         self._state_lock = threading.RLock()
         self._closed = False
+        self._pump_error: str | None = None
         self._pump_wake = threading.Event()
         key_fn = key_fn or (lambda event: "")
         self._inner = ThreadPoolEventDispatcher(
@@ -221,10 +227,14 @@ class DurableEventDispatcher:
             # so quarantine it instead of guessing which side committed first.
             db.execute(
                 "UPDATE webhook_jobs_v1 "
-                "SET state='failed',payload=NULL,updated_at=?,error_type='ProcessInterruptedUnknown' "
+                "SET state='interrupted',updated_at=?,error_type='ProcessInterruptedUnknown' "
                 "WHERE state='processing'",
                 (time.time(),),
             )
+        try:
+            os.chmod(self._path, 0o600)
+        except OSError:
+            self._logger.warning("event=webhook_store_permission_check_failed")
         self._pump_thread = threading.Thread(
             target=self._pump_loop, name="line-durable-pump", daemon=True
         )
@@ -270,8 +280,13 @@ class DurableEventDispatcher:
                 cutoff = now - self._dedupe_retention_seconds
                 db.execute(
                     "DELETE FROM webhook_jobs_v1 "
-                    "WHERE state IN ('done','failed') AND updated_at < ?",
+                    "WHERE state IN ('done','failed','interrupted') AND updated_at < ?",
                     (cutoff,),
+                )
+                db.execute(
+                    "UPDATE webhook_jobs_v1 SET payload=NULL "
+                    "WHERE state='interrupted' AND updated_at < ?",
+                    (now - 3600,),
                 )
                 existing = {
                     event_id
@@ -306,7 +321,14 @@ class DurableEventDispatcher:
             with self._state_lock:
                 if self._closed:
                     return
-                self._pump_locked()
+                try:
+                    self._pump_locked()
+                    self._pump_error = None
+                except Exception as exc:
+                    self._pump_error = type(exc).__name__
+                    self._logger.exception(
+                        "event=durable_pump_failed error_type=%s", type(exc).__name__
+                    )
 
     def _pump_locked(self) -> None:
         if self._handler is None or self._closed:
@@ -361,7 +383,7 @@ class DurableEventDispatcher:
         except AmbiguousReplyError as exc:
             self._set_failed(job.event_id, type(exc).__name__)
             self._logger.error("event=durable_job_failed reason=ambiguous_reply")
-        except Exception as exc:  # noqa: BLE001 - retry only definite pre-reply failures
+        except RetryablePreReplyError as exc:
             retry = attempts < self._max_attempts and now - created_at < self._retry_budget_seconds
             with closing(self._connect()) as db:
                 db.execute(
@@ -377,6 +399,13 @@ class DurableEventDispatcher:
                 )
             self._logger.error(
                 "event=durable_job_failed retry=%s error_type=%s", retry, type(exc).__name__
+            )
+        except Exception as exc:  # noqa: BLE001 - unknown phase must never replay side effects
+            self._set_failed(job.event_id, type(exc).__name__)
+            self._logger.error(
+                "event=durable_job_failed retry=false reason=unknown_processing_phase "
+                "error_type=%s",
+                type(exc).__name__,
             )
         else:
             with closing(self._connect()) as db:
@@ -398,11 +427,17 @@ class DurableEventDispatcher:
 
     def ready(self) -> bool:
         try:
+            with self._state_lock:
+                if self._closed or not self._pump_thread.is_alive() or self._pump_error:
+                    return False
             with closing(self._connect()) as db:
                 db.execute("BEGIN IMMEDIATE")
                 db.execute("SELECT 1 FROM webhook_jobs_v1 LIMIT 1").fetchone()
+                interrupted = db.execute(
+                    "SELECT COUNT(*) FROM webhook_jobs_v1 WHERE state='interrupted'"
+                ).fetchone()[0]
                 db.rollback()
-            return True
+            return interrupted == 0
         except sqlite3.Error:
             return False
 

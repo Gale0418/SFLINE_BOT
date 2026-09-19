@@ -8,7 +8,8 @@ def test_nas_compose_uses_repository_env_and_image_healthcheck():
     dockerfile = (ROOT / "deploy" / "nas" / "Dockerfile").read_text(encoding="utf-8")
 
     assert compose.count("- ../../.env") == 1
-    assert "NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN" in compose
+    assert "- ../../ngrok.env" in compose
+    assert "NGROK_AUTHTOKEN:" not in compose
     assert "ngrok:\n" in compose
     assert "../../../.env" not in compose
     assert "condition: service_healthy" in compose

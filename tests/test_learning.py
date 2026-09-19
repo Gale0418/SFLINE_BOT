@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 
@@ -45,6 +46,27 @@ def test_full_route_and_restart(manager):
         manager = LearningManager(manager.path, salt="secret", knowledge=manager.knowledge, bank=manager.bank)
         assert "已通過" in manager.handle("alice", "學習地圖")[0]
     assert "全部四階段" in result[0]
+
+
+def test_legacy_schema_migration_preserves_progress(tmp_path, knowledge, quiz_bank):
+    path = tmp_path / "legacy.db"
+    legacy_state = json.dumps({"active": "cosmos", "routes": {"cosmos": {"unlocked": 2}}})
+    with sqlite3.connect(path) as db:
+        db.execute("CREATE TABLE learning_v1 (user_key TEXT PRIMARY KEY, state TEXT NOT NULL)")
+        db.execute("INSERT INTO learning_v1 VALUES (?,?)", ("legacy-user", legacy_state))
+    LearningManager(
+        path,
+        salt="secret",
+        knowledge=knowledge,
+        bank=quiz_bank,
+        clock=lambda: 2_000_000_000.0,
+    )
+    with sqlite3.connect(path) as db:
+        state, updated_at = db.execute(
+            "SELECT state,updated_at FROM learning_v1 WHERE user_key='legacy-user'"
+        ).fetchone()
+    assert json.loads(state)["routes"]["cosmos"]["unlocked"] == 2
+    assert updated_at == 2_000_000_000.0
 
 
 def test_fail_remediation_no_unlock(manager):

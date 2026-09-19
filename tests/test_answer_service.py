@@ -11,7 +11,7 @@ from eternal_polaris.answer_service import (
     render_answer,
 )
 from eternal_polaris.knowledge import KnowledgeError
-from eternal_polaris.models import BotAnswer, Exchange, ScienceLabel
+from eternal_polaris.models import LABEL_TITLES, BotAnswer, Exchange, ScienceLabel
 
 
 class FakeResponses:
@@ -158,7 +158,8 @@ def test_google_response_ignores_thought_parts(knowledge):
     )
     service = OpenAIAnswerService("google-key", "gemma-4-31b-it", knowledge, client=client)
     answer = service.answer(card.canonical_question, ())
-    assert answer.answer == "".join(fact.rstrip("。！？") + "。" for fact in card.facts)
+    expected_facts = "\n".join("• " + fact.rstrip("。！？") + "。" for fact in card.facts)
+    assert answer.answer == f"【{LABEL_TITLES[card.label]}｜{card.canonical_question}】\n{expected_facts}"
     assert "internal" not in answer.answer
 
 
@@ -172,6 +173,16 @@ def test_science_model_claim_is_replaced_by_cited_reviewed_facts(knowledge):
     assert "沒有被來源支持" not in answer.answer
     assert all(fact.rstrip("。！？") in answer.answer for fact in card.facts)
     assert answer.route == "model_grounded"
+
+
+def test_science_answer_marks_each_mixed_classification_source(knowledge):
+    first = next(card for card in knowledge.cards if card.label is ScienceLabel.OBSERVED_VERIFIED)
+    other = next(card for card in knowledge.cards if card.label is ScienceLabel.SCIENCE_FICTION)
+    answer = knowledge.ground_answer(
+        BotAnswer(first.label, "混合來源", (first.id, other.id))
+    )
+    assert f"【{LABEL_TITLES[first.label]}｜" in answer.answer
+    assert f"【{LABEL_TITLES[other.label]}｜" in answer.answer
 
 
 def test_hybrid_uses_local_card_for_exact_question(knowledge):

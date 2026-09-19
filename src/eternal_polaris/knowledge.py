@@ -11,7 +11,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from urllib.parse import urlparse
 
-from .models import BotAnswer, KnowledgeCard, ScienceLabel
+from .models import LABEL_TITLES, BotAnswer, KnowledgeCard, ScienceLabel
 
 
 class KnowledgeError(ValueError):
@@ -28,6 +28,13 @@ _BLOCKED_DIRECT_INTENTS = (
 def _normalize(text: str) -> str:
     text = unicodedata.normalize("NFKC", text).lower().strip()
     return re.sub(r"[^0-9a-z\u3400-\u9fff]+", "", text)
+
+
+def _bounded_query(text: str, *, limit: int = 320) -> str:
+    if len(text) <= limit:
+        return text
+    half = limit // 2
+    return text[:half] + text[-half:]
 
 
 def _features(text: str) -> Counter[str]:
@@ -154,6 +161,7 @@ class KnowledgeBase:
         if normalized in self._exact_matches:
             card = self._exact_matches[normalized]
             return (card,) if card is not None else ()
+        normalized = _bounded_query(normalized)
         contained = self._contained_cards(normalized)
         if contained:
             return contained[:limit]
@@ -193,12 +201,17 @@ class KnowledgeBase:
         candidate_hits: Counter[int] = Counter()
         for feature in query_features:
             candidate_hits.update(self._feature_index.get(feature, ()))
-        candidate_indexes = (
-            index
-            for index, _ in sorted(
-                candidate_hits.items(), key=lambda item: (-item[1], item[0])
-            )[:256]
-        )
+        if candidate_hits:
+            minimum_hits = max(1, math.ceil(max(candidate_hits.values()) * 0.15))
+            candidate_indexes = (
+                index
+                for index, hits in sorted(
+                    candidate_hits.items(), key=lambda item: (-item[1], item[0])
+                )[:512]
+                if hits >= minimum_hits
+            )
+        else:
+            candidate_indexes = iter(())
         ranked: list[tuple[float, str, KnowledgeCard]] = []
         for index in candidate_indexes:
             card, rows = self._search_rows[index]
@@ -237,6 +250,7 @@ class KnowledgeBase:
 
         if normalized in self._exact_matches:
             return self._exact_matches[normalized]
+        normalized = _bounded_query(normalized)
         contained = self._contained_cards(normalized)
         if len(contained) == 1:
             return contained[0]
@@ -284,28 +298,31 @@ class KnowledgeBase:
         answer = self.validate_answer(answer)
         if not answer.source_ids:
             return answer
-        facts: list[str] = []
+        blocks: list[str] = []
+        used_source_ids: list[str] = []
+        length = 0
         for source_id in answer.source_ids:
-            for fact in self.by_id[source_id].facts:
-                sentence = fact.rstrip("。！？") + "。"
-                if sentence not in facts:
-                    facts.append(sentence)
-        text = "".join(facts)
-        if len(text) > 700:
-            kept: list[str] = []
-            length = 0
-            for fact in facts:
-                if length + len(fact) > 700:
+            card = self.by_id[source_id]
+            heading = f"【{LABEL_TITLES[card.label]}｜{card.canonical_question}】"
+            card_lines: list[str] = []
+            block_length = len(heading) + (2 if blocks else 0)
+            for fact in card.facts:
+                line = "• " + fact.rstrip("。！？") + "。"
+                separator = 1
+                if length + block_length + separator + len(line) > 700:
                     break
-                kept.append(fact)
-                length += len(fact)
-            text = "".join(kept)
-        if not text:
+                card_lines.append(line)
+                block_length += separator + len(line)
+            if card_lines:
+                blocks.append(heading + "\n" + "\n".join(card_lines))
+                used_source_ids.append(source_id)
+                length += block_length
+        if not blocks:
             raise KnowledgeError("引用來源沒有可顯示的已審核事實")
         return BotAnswer(
             label=answer.label,
-            answer=text,
-            source_ids=answer.source_ids,
+            answer="\n\n".join(blocks),
+            source_ids=tuple(used_source_ids),
             route="model_grounded",
         )
 

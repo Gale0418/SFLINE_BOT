@@ -68,6 +68,11 @@ class LearningManager:
                 db.execute(
                     "ALTER TABLE learning_v1 ADD COLUMN updated_at REAL NOT NULL DEFAULT 0"
                 )
+                db.execute(
+                    "UPDATE learning_v1 SET updated_at=? WHERE updated_at=0",
+                    (self._clock(),),
+                )
+            self._prune(db)
 
     def _connect(self):
         return sqlite3.connect(self.path, timeout=10, isolation_level=None)

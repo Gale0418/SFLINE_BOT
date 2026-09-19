@@ -33,8 +33,8 @@ services:
     image: ngrok/ngrok:3.39.11-alpine@sha256:187e588f6c4efe3b29cd3eea9fcd768a1afa7342319e3cee9aeb5af6a9cf64fd
     container_name: eternal-polaris-ngrok
     restart: unless-stopped
-    environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?請在專案 .env 設定 NGROK_AUTHTOKEN}
+    env_file:
+      - ../../ngrok.env
     dns:
       - 1.1.1.1
       - 8.8.8.8

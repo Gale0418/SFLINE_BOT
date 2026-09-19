@@ -6,7 +6,11 @@ import time
 
 from linebot.v3.webhooks import Event
 
-from eternal_polaris.dispatcher import DurableEventDispatcher, ThreadPoolEventDispatcher
+from eternal_polaris.dispatcher import (
+    DurableEventDispatcher,
+    RetryablePreReplyError,
+    ThreadPoolEventDispatcher,
+)
 from eternal_polaris.line_gateway import AmbiguousReplyError
 
 
@@ -111,7 +115,7 @@ def test_durable_dispatcher_retries_definite_failure_but_not_ambiguous_reply(tmp
         nonlocal attempts
         attempts += 1
         if attempts < 3:
-            raise RuntimeError("definite pre-reply failure")
+            raise RetryablePreReplyError("definite pre-reply failure")
         succeeded.set()
 
     dispatcher = DurableEventDispatcher(tmp_path / "retry.sqlite3", max_workers=1)
@@ -157,6 +161,7 @@ def test_restart_quarantines_unknown_processing_job_without_replaying(tmp_path):
     restarted = DurableEventDispatcher(path, max_workers=1)
     restarted.start(lambda event: calls.append(event.webhook_event_id))
     time.sleep(0.2)
+    assert not restarted.ready()
     restarted.shutdown(wait=True)
 
     with sqlite3.connect(path) as db:
@@ -166,7 +171,26 @@ def test_restart_quarantines_unknown_processing_job_without_replaying(tmp_path):
         ).fetchone()
     assert calls == []
     assert (state, stored_payload, error_type) == (
-        "failed",
-        None,
+        "interrupted",
+        payload,
         "ProcessInterruptedUnknown",
     )
+
+
+def test_unknown_handler_failure_is_never_replayed(tmp_path):
+    calls = 0
+    failed = threading.Event()
+
+    def unknown_phase(event):
+        nonlocal calls
+        calls += 1
+        failed.set()
+        raise RuntimeError("may have mutated state")
+
+    dispatcher = DurableEventDispatcher(tmp_path / "unknown.sqlite3", max_workers=1)
+    dispatcher.start(unknown_phase)
+    assert dispatcher.submit_many((_line_event("evt-unknown"),), unknown_phase)
+    assert failed.wait(2)
+    time.sleep(0.4)
+    dispatcher.shutdown(wait=True)
+    assert calls == 1

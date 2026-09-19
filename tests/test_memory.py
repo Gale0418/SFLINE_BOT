@@ -55,3 +55,20 @@ def test_request_rate_limiter_enforces_user_and_global_windows():
     assert not limiter.allow("u3")
     now[0] += 61
     assert limiter.allow("u1")
+
+
+def test_request_rate_limiter_rejects_new_user_when_all_slots_are_active():
+    now = [100.0]
+    limiter = RequestRateLimiter(
+        salt="salt",
+        per_user_per_minute=2,
+        global_per_minute=10,
+        max_users=2,
+        clock=lambda: now[0],
+    )
+    assert limiter.allow("u1")
+    assert limiter.allow("u2")
+    assert not limiter.allow("u3")
+    assert limiter.allow("u1")
+    now[0] += 61
+    assert limiter.allow("u3")

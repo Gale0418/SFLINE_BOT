@@ -10,8 +10,14 @@ import pytest
 
 from eternal_polaris import persona
 from eternal_polaris.answer_service import SERVICE_ERROR_REPLY
-from eternal_polaris.app import QUESTION_TOO_LONG_REPLY, UNSUPPORTED_REPLY, create_app
+from eternal_polaris.app import (
+    QUESTION_TOO_LONG_REPLY,
+    RATE_LIMIT_REPLY,
+    UNSUPPORTED_REPLY,
+    create_app,
+)
 from eternal_polaris.dispatcher import InlineEventDispatcher
+from eternal_polaris.memory import RequestRateLimiter
 from eternal_polaris.models import BotAnswer, ScienceLabel
 from eternal_polaris.quiz import QuizManager
 
@@ -80,7 +86,16 @@ def _signature(body, secret):
     return base64.b64encode(digest).decode()
 
 
-def _make_app(settings, knowledge, quiz_bank, provider=None, gateway=None, dispatcher=None, manager=None):
+def _make_app(
+    settings,
+    knowledge,
+    quiz_bank,
+    provider=None,
+    gateway=None,
+    dispatcher=None,
+    manager=None,
+    rate_limiter=None,
+):
     return create_app(
         settings,
         answer_provider=provider or FakeAnswerProvider(),
@@ -89,6 +104,7 @@ def _make_app(settings, knowledge, quiz_bank, provider=None, gateway=None, dispa
         quiz_bank=quiz_bank,
         quiz_manager=manager,
         dispatcher=dispatcher or InlineEventDispatcher(),
+        rate_limiter=rate_limiter,
     )
 
 
@@ -303,6 +319,35 @@ def test_non_text_event_gets_fixed_reply(settings, knowledge, quiz_bank):
     _post(app, _body(message_type="image"), settings)
     assert gateway.replies[0][1] == UNSUPPORTED_REPLY
     assert any(option.message_text == "首頁" or option.message_text == "幫助" for option in gateway.replies[0][2])
+
+
+def test_group_rejection_has_no_unusable_recovery_buttons(settings, knowledge, quiz_bank):
+    gateway = FakeReplyGateway()
+    app = _make_app(settings, knowledge, quiz_bank, gateway=gateway)
+    _post(app, _body(source_type="group"), settings)
+    assert gateway.replies[0][1] == UNSUPPORTED_REPLY
+    assert gateway.replies[0][2] == ()
+
+
+def test_rate_limit_stops_model_and_returns_recovery_options(settings, knowledge, quiz_bank):
+    provider = FakeAnswerProvider(error=AssertionError("rate-limited request must not call model"))
+    gateway = FakeReplyGateway()
+    limiter = RequestRateLimiter(
+        salt="salt", per_user_per_minute=1, global_per_minute=1
+    )
+    assert limiter.allow("U-test")
+    app = _make_app(
+        settings,
+        knowledge,
+        quiz_bank,
+        provider=provider,
+        gateway=gateway,
+        rate_limiter=limiter,
+    )
+    _post(app, _body(), settings)
+    assert gateway.replies[-1][1] == RATE_LIMIT_REPLY
+    assert gateway.replies[-1][2]
+    assert provider.calls == 0
 
 
 def test_home_command_exits_quiz_and_returns_menu(settings, knowledge, quiz_bank):

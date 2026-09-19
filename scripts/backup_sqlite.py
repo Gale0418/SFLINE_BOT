@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,6 +19,7 @@ def backup_database(source: Path, destination: Path) -> dict[str, str | int]:
         check = dst.execute("PRAGMA integrity_check").fetchone()[0]
         if check != "ok":
             raise RuntimeError(f"backup integrity check failed: {source.name}")
+    os.chmod(destination, 0o600)
     payload = destination.read_bytes()
     return {
         "source": source.name,
@@ -33,7 +35,7 @@ def run_backup(data_dir: Path, backup_dir: Path, *, keep: int = 14) -> Path:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     run_dir = backup_dir / stamp
     records = []
-    for name in ("learning.sqlite3", "webhooks.sqlite3"):
+    for name in ("learning.sqlite3",):
         source = data_dir / name
         if source.exists():
             records.append(backup_database(source, run_dir / name))
@@ -44,6 +46,7 @@ def run_backup(data_dir: Path, backup_dir: Path, *, keep: int = 14) -> Path:
         json.dumps({"created_at": stamp, "files": records}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    os.chmod(manifest, 0o600)
     completed = sorted(path for path in backup_dir.iterdir() if (path / "manifest.json").is_file())
     for old in completed[:-keep]:
         for child in old.iterdir():

@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+ngrok.env
 [Nn][Gg][Rr][Oo][Kk].[Tt][Xx][Tt]
 [Oo][Ww][Oo].[Tt][Xx][Tt]
 .venv/

@@ -252,7 +252,7 @@ def _handle_event(
     user_id = str(getattr(source, "user_id", "") or "")
     try:
         if source_type != "user" or not user_id:
-            _reply(reply_gateway, reply_token, UNSUPPORTED_REPLY, _home_options())
+            _reply(reply_gateway, reply_token, UNSUPPORTED_REPLY)
             logger.info("event=reply_sent category=unsupported_source")
             return
         if isinstance(event, FollowEvent):
