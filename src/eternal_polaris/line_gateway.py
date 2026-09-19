@@ -59,6 +59,10 @@ class ReplyGateway(Protocol):
     ) -> None: ...
 
 
+class AmbiguousReplyError(RuntimeError):
+    """The Reply API outcome is unknown, so automatically retrying is unsafe."""
+
+
 def build_text_message(text: str, quick_replies: Sequence[QuickReplyOption] = ()) -> TextMessage:
     if not 1 <= len(text) <= 5000:
         raise ValueError("LINE 文字訊息必須為 1 到 5000 個字元")
@@ -237,11 +241,14 @@ class LineReplyGateway:
             if filename:
                 hero_url = f"{self._public_base_url}/media/knowledge/{filename}"
         message = build_reply_message(text, quick_replies, hero_url=hero_url)
-        with ApiClient(self._configuration) as api_client:
-            MessagingApi(api_client).reply_message_with_http_info(
-                ReplyMessageRequest(reply_token=reply_token, messages=[message]),
-                _request_timeout=self._request_timeout_seconds,
-            )
+        try:
+            with ApiClient(self._configuration) as api_client:
+                MessagingApi(api_client).reply_message_with_http_info(
+                    ReplyMessageRequest(reply_token=reply_token, messages=[message]),
+                    _request_timeout=self._request_timeout_seconds,
+                )
+        except Exception as exc:
+            raise AmbiguousReplyError("LINE Reply API delivery outcome is unknown") from exc
 
 
 def _resolve_hero_filename(text: str, hero_filename: str = "") -> str:

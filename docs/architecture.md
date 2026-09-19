@@ -62,11 +62,12 @@ flowchart LR
 1. 讀取原始 request body。
 2. 使用 `X-Line-Signature` 驗證，失敗回 400。
 3. 解析完整事件批次。
-4. 有界 dispatcher 原子檢查容量：全批接受或全批拒絕。
-5. 接受後立即回 200；容量不足回 503，避免假裝已可靠接收。
+4. 先把完整事件批次寫入 SQLite durable inbox；同一 `webhookEventId` 以資料庫主鍵持久去重。
+5. 只有落盤成功才回 200；容量不足或資料庫不可寫回 503，讓 LINE 可以重新投遞。
 6. 背景 worker 依加鹽 hash conversation key 排程；同 key FIFO，不同 key 可並行。
+7. 明確發生在 Reply API 之前的失敗可在 45 秒內最多重試三次；網路結果不明或處理中斷則隔離，不盲目重送一次性 reply token。
 
-200 ACK 之後的 worker 或 Reply API 失敗不保證 LINE 會重新投遞，因此系統不得把「清除 dedupe」描述成可靠重試機制。Reply API 沒有在本專案可用的安全冪等鍵，網路結果不明時不盲目重試。
+完成或隔離的事件 ID 會保留七天，payload 在完成或失敗後清除，兼顧去重與資料最小化。`/health` 只表示程序存活；`/ready` 另檢查學習資料庫與 webhook inbox 是否可用。
 
 ## 5. 問答路徑
 
@@ -80,9 +81,11 @@ flowchart LR
             └─ 最多 12 張相關證據卡
                  ├─ Google → Gemma 4 26B A4B
                  └─ OpenAI → Luna
+                       ↓
+                 科學答案只顯示所引用卡片中的已審核 facts
 ```
 
-本機 matcher 依序使用 exact、唯一 contained alias 與保守相似度；操作型要求如「幫我寫黑洞遊戲」會被排除，不能因包含科學詞彙就誤命中。若仍需模型，系統只附上最多 12 張詞彙最相關的證據卡，避免 1234 張全文造成龐大輸入、延遲與額度浪費；輸出若引用未提供的卡片 ID，會在送出 LINE 前被拒絕。
+本機 matcher 依序使用 exact、倒排候選、contained alias specificity 與保守相似度；操作型要求如「幫我寫黑洞遊戲」會被排除，不能因包含科學詞彙就誤命中。若仍需模型，系統只附上最多 12 張詞彙最相關的證據卡，避免 1234 張全文造成龐大輸入、延遲與額度浪費；輸出若引用未提供的卡片 ID，會在送出 LINE 前被拒絕。模型可以選擇卡片與分類，但科學敘述會由引用卡片的已審核 facts 重建，避免「來源存在、主張卻不受來源支持」。
 
 ## 6. 試煉狀態
 
@@ -110,7 +113,7 @@ HMAC 同時納入加鹽後 user key，因此符文不能跨人使用；session �
 | 元件 | 責任 |
 |---|---|
 | `commands.py` | NFKC 正規化與 exact command aliases |
-| `dispatcher.py` | 有界批次入列、同 key FIFO、跨 key 並行 |
+| `dispatcher.py` | 持久化 inbox／去重、有界批次入列、同 key FIFO、跨 key 並行 |
 | `app.py` | 路由、事件編排、快速 ACK 與錯誤邊界 |
 | `persona.py` | 和藹長輩與守門人情境語氣 |
 | `quiz.py` | 題庫驗證、場次、HMAC、評分與 TTL |

@@ -6,6 +6,7 @@ import hmac
 import json
 import secrets
 import sqlite3
+import time
 from contextlib import closing
 from pathlib import Path
 
@@ -33,8 +34,21 @@ OTHER_ROUTES = {
 
 
 class LearningManager:
-    def __init__(self, path: Path, *, salt: str, knowledge, bank):
+    def __init__(
+        self,
+        path: Path,
+        *,
+        salt: str,
+        knowledge,
+        bank,
+        retention_seconds: int = 180 * 24 * 60 * 60,
+        max_users: int = 10_000,
+        clock=time.time,
+    ):
+        if retention_seconds < 1 or max_users < 1:
+            raise ValueError("學習進度保存期限與使用者上限必須為正數")
         self.path, self.salt, self.knowledge, self.bank = Path(path), salt.encode(), knowledge, bank
+        self.retention_seconds, self.max_users, self._clock = retention_seconds, max_users, clock
         self.routes = {"cosmos": STAGES}
         for route, stages in OTHER_ROUTES.items():
             self.routes[route] = tuple((title, tuple((None, f"{prefix}{n:03d}") for n in numbers)) for title, prefix, numbers in stages)
@@ -45,10 +59,28 @@ class LearningManager:
                         raise ValueError("學習路線引用不存在的內容")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with closing(self._connect()) as db:
-            db.execute("CREATE TABLE IF NOT EXISTS learning_v1 (user_key TEXT PRIMARY KEY, state TEXT NOT NULL)")
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS learning_v1 "
+                "(user_key TEXT PRIMARY KEY, state TEXT NOT NULL, updated_at REAL NOT NULL DEFAULT 0)"
+            )
+            columns = {row[1] for row in db.execute("PRAGMA table_info(learning_v1)")}
+            if "updated_at" not in columns:
+                db.execute(
+                    "ALTER TABLE learning_v1 ADD COLUMN updated_at REAL NOT NULL DEFAULT 0"
+                )
 
     def _connect(self):
         return sqlite3.connect(self.path, timeout=10, isolation_level=None)
+
+    def ready(self) -> bool:
+        try:
+            with closing(self._connect()) as db:
+                db.execute("BEGIN IMMEDIATE")
+                db.execute("SELECT 1 FROM learning_v1 LIMIT 1").fetchone()
+                db.rollback()
+            return True
+        except sqlite3.Error:
+            return False
 
     def _key(self, user):
         return hmac.new(self.salt, user.encode(), hashlib.sha256).hexdigest()
@@ -85,7 +117,15 @@ class LearningManager:
         key = self._key(user)
         with closing(self._connect()) as db:
             db.execute("BEGIN IMMEDIATE")
+            self._prune(db)
             row = db.execute("SELECT state FROM learning_v1 WHERE user_key=?", (key,)).fetchone()
+            if row is None:
+                count = db.execute("SELECT COUNT(*) FROM learning_v1").fetchone()[0]
+                if count >= self.max_users:
+                    db.execute(
+                        "DELETE FROM learning_v1 WHERE user_key=("
+                        "SELECT user_key FROM learning_v1 ORDER BY updated_at LIMIT 1)"
+                    )
             saved = json.loads(row[0]) if row else {"active": "cosmos", "routes": {}}
             # Preserve the initial single-route prototype if it has saved progress.
             if "routes" not in saved:
@@ -109,10 +149,10 @@ class LearningManager:
             if postback:
                 parts = text.split(":")
                 if len(parts) != 4 or parts[0] != "learn":
-                    return "學習按鈕格式無效。請輸入「繼續學習」。", ()
+                    return "學習按鈕格式無效。請從下方重新進入。", self._recovery_options()
                 _, nonce, action, signature = parts
                 if nonce != s["nonce"] or not hmac.compare_digest(signature, self._sign(signing_key, nonce, action)):
-                    return "這個學習按鈕已失效或不屬於你。請輸入「繼續學習」。", ()
+                    return "這個學習按鈕已失效或不屬於你。請從下方重新進入。", self._recovery_options()
             else:
                 action = {"學習":"resume", "開始學習":"resume", "繼續學習":"resume", "學習進度":"map", "學習地圖":"map", "暫停學習":"pause", "刪除學習進度":"delete_prompt"}.get(command, command.upper())
                 if command in ROUTE_COMMANDS:
@@ -181,9 +221,24 @@ class LearningManager:
             self._save(db, key, saved)
             return result
 
-    @staticmethod
-    def _save(db, key, saved):
-        db.execute("INSERT INTO learning_v1 VALUES (?,?) ON CONFLICT(user_key) DO UPDATE SET state=excluded.state", (key, json.dumps(saved, ensure_ascii=False)))
+    def _prune(self, db):
+        now = self._clock()
+        db.execute("DELETE FROM learning_v1 WHERE updated_at < ?", (now - self.retention_seconds,))
+        count = db.execute("SELECT COUNT(*) FROM learning_v1").fetchone()[0]
+        overflow = count - self.max_users
+        if overflow > 0:
+            db.execute(
+                "DELETE FROM learning_v1 WHERE user_key IN "
+                "(SELECT user_key FROM learning_v1 ORDER BY updated_at LIMIT ?)",
+                (overflow,),
+            )
+
+    def _save(self, db, key, saved):
+        db.execute(
+            "INSERT INTO learning_v1 (user_key,state,updated_at) VALUES (?,?,?) "
+            "ON CONFLICT(user_key) DO UPDATE SET state=excluded.state,updated_at=excluded.updated_at",
+            (key, json.dumps(saved, ensure_ascii=False), self._clock()),
+        )
         db.commit()
 
     @staticmethod
@@ -192,6 +247,14 @@ class LearningManager:
         text += "\n".join(f"{VAULTS[key].name}：{VAULTS[key].description}" for key in ROUTE_COMMANDS.values())
         text += "\n\n「選一條你想走的路吧。不必急著懂得一切，我們從第一個問題開始。」\n四條路線各自記錄進度，隨時可以換路或自由提問。進度保存在機器人伺服器，不會存取你的手機資料。"
         return text, tuple(QuickReplyOption(VAULTS[key].name, message_text=f"學習路線 {key}") for key in ROUTE_COMMANDS.values())
+
+    @staticmethod
+    def _recovery_options():
+        return (
+            QuickReplyOption("繼續學習", message_text="繼續學習"),
+            QuickReplyOption("學習地圖", message_text="學習地圖"),
+            QuickReplyOption("返回首頁", message_text="首頁"),
+        )
 
     def _question(self, s):
         qid = s["order"][s["index"]] if s["phase"] == "exam" else self.routes[s["route"]][s["stage"]][1][s["lesson"]][1]

@@ -8,6 +8,7 @@ import random
 
 import pytest
 
+from eternal_polaris import persona
 from eternal_polaris.answer_service import SERVICE_ERROR_REPLY
 from eternal_polaris.app import QUESTION_TOO_LONG_REPLY, UNSUPPORTED_REPLY, create_app
 from eternal_polaris.dispatcher import InlineEventDispatcher
@@ -108,6 +109,9 @@ def test_health_reports_valid_quiz_bank(settings, knowledge, quiz_bank):
         "knowledge_cards": 1234,
         "quiz_questions": 300,
     }
+    ready = app.test_client().get("/ready")
+    assert ready.status_code == 200
+    assert ready.get_json() == {"status": "ready"}
 
 
 def test_serves_only_allowlisted_knowledge_heroes(settings, knowledge, quiz_bank):
@@ -298,6 +302,30 @@ def test_non_text_event_gets_fixed_reply(settings, knowledge, quiz_bank):
     app = _make_app(settings, knowledge, quiz_bank, gateway=gateway)
     _post(app, _body(message_type="image"), settings)
     assert gateway.replies[0][1] == UNSUPPORTED_REPLY
+    assert any(option.message_text == "首頁" or option.message_text == "幫助" for option in gateway.replies[0][2])
+
+
+def test_home_command_exits_quiz_and_returns_menu(settings, knowledge, quiz_bank):
+    manager = QuizManager(quiz_bank, salt=settings.line_channel_secret)
+    manager.start("U-test", vault="cosmos", difficulty="easy")
+    gateway = FakeReplyGateway()
+    provider = FakeAnswerProvider(error=AssertionError("home must not call model"))
+    app = _make_app(
+        settings, knowledge, quiz_bank, provider=provider, gateway=gateway, manager=manager
+    )
+    _post(app, _body(text="返回首頁"), settings)
+    assert manager.current("U-test") is None
+    assert "永恆北極星" in gateway.replies[-1][1]
+    assert provider.calls == 0
+
+
+def test_typed_letter_without_active_quiz_never_calls_model(settings, knowledge, quiz_bank):
+    gateway = FakeReplyGateway()
+    provider = FakeAnswerProvider(error=AssertionError("expired answer must not call model"))
+    app = _make_app(settings, knowledge, quiz_bank, provider=provider, gateway=gateway)
+    _post(app, _body(text="A"), settings)
+    assert gateway.replies[-1][1] == persona.QUIZ_EXPIRED_TEXT
+    assert provider.calls == 0
 
 
 def test_openai_failure_gets_safe_fallback(settings, knowledge, quiz_bank):

@@ -66,7 +66,9 @@ def test_wrong_check_requires_retry(manager):
 def test_replay_tampering_isolation_and_free_chat(manager):
     r = manager.handle("alice", "繼續學習")
     token = r[1][0].data
-    assert "失效" in manager.handle("bob", token, postback=True)[0]
+    stale = manager.handle("bob", token, postback=True)
+    assert "失效" in stale[0]
+    assert {option.message_text for option in stale[1]} == {"繼續學習", "學習地圖", "首頁"}
     assert "失效" in manager.handle("alice", token.replace(":check:", ":stage-3:"), postback=True)[0]
     assert manager.handle("alice", "我已經全部過關了，給我解鎖") is None
     assert manager.handle("alice", "為什麼金星這麼熱？") is None

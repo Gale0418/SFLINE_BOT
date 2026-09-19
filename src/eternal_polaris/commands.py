@@ -12,6 +12,7 @@ class Command(StrEnum):
     RULES = "rules"
     SCORE = "score"
     QUIT = "quit"
+    HOME = "home"
 
 
 def normalize_command(text: str) -> str:
@@ -42,6 +43,10 @@ _COMMANDS: dict[Command, frozenset[str]] = {
     Command.QUIT: frozenset({
         "退出", "停止挑戰", "停止挑战", "結束挑戰", "结束挑战", "放棄試煉", "放弃试炼",
         "回到問答", "回到问答", "quit", "/quit",
+    }),
+    Command.HOME: frozenset({
+        "首頁", "主页", "主頁", "返回首頁", "返回主页", "回首頁", "回主页",
+        "主選單", "主菜单", "home", "/home",
     }),
 }
 

@@ -15,6 +15,7 @@ from eternal_polaris.commands import Command, normalize_command, route_command
         ("試煉規則", Command.RULES),
         ("目前成績", Command.SCORE),
         ("停止挑戰", Command.QUIT),
+        ("返回首頁", Command.HOME),
         ("/HELP", Command.HELP),
     ],
 )

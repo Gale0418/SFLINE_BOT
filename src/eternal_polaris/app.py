@@ -28,12 +28,12 @@ from .answer_service import (
 )
 from .commands import Command, normalize_command, route_command
 from .config import Settings
-from .dispatcher import EventDispatcher, ThreadPoolEventDispatcher
+from .dispatcher import DurableEventDispatcher, EventDispatcher
 from .knowledge import KnowledgeBase
 from .knowledge_images import FEATURED_IMAGE_FILES, image_filename_for_sources
 from .learning import ROUTE_COMMANDS, LearningManager
 from .line_gateway import LineReplyGateway, QuickReplyOption, ReplyGateway
-from .memory import ConversationMemory, EventDeduplicator
+from .memory import ConversationMemory, EventDeduplicator, RequestRateLimiter
 from .quiz import (
     DIFFICULTY_NAMES,
     LETTERS,
@@ -49,6 +49,7 @@ UNSUPPORTED_REPLY = "我目前只看得懂一對一聊天室中的文字訊息�
 QUESTION_TOO_LONG_REPLY = "這段訊息太長了。請把問題縮短到 1000 個字以內，我們再慢慢談。"
 EMPTY_MESSAGE_REPLY = "我似乎只聽見了一陣安靜。寫下一個天文問題，或說『挑戰』敲響寶庫吧。"
 BUSY_REPLY = "Busy"
+RATE_LIMIT_REPLY = "星路上的訊號一時太擁擠了。請等一分鐘再問；你的學習進度與試煉不受影響。"
 CHILD_QUESTIONS = (
     "天空為什麼是藍色的？",
     "彩虹可以走上去嗎？",
@@ -76,6 +77,7 @@ def create_app(
     deduplicator: EventDeduplicator | None = None,
     dispatcher: EventDispatcher | None = None,
     learning_manager: LearningManager | None = None,
+    rate_limiter: RequestRateLimiter | None = None,
 ) -> Flask:
     settings = settings or Settings.from_env()
     knowledge = knowledge or KnowledgeBase.load(_resolve_path(settings.knowledge_path))
@@ -104,12 +106,14 @@ def create_app(
         ttl_seconds=settings.memory_ttl_seconds,
     )
     deduplicator = deduplicator or EventDeduplicator(settings.dedupe_ttl_seconds)
+    rate_limiter = rate_limiter or RequestRateLimiter(salt=settings.line_channel_secret)
     quiz_manager = quiz_manager or QuizManager(
         quiz_bank,
         salt=settings.line_channel_secret,
         ttl_seconds=settings.quiz_ttl_seconds,
     )
-    dispatcher = dispatcher or ThreadPoolEventDispatcher(
+    dispatcher = dispatcher or DurableEventDispatcher(
+        _resolve_path(settings.webhook_store_path),
         max_workers=settings.webhook_worker_threads,
         queue_capacity=settings.webhook_queue_capacity,
         max_pending_per_key=settings.webhook_max_pending_per_key,
@@ -138,7 +142,12 @@ def create_app(
             quiz_manager=quiz_manager,
             logger=app.logger,
             learning_manager=learning_manager,
+            rate_limiter=rate_limiter,
         )
+
+    start_dispatcher = getattr(dispatcher, "start", None)
+    if start_dispatcher is not None:
+        start_dispatcher(process_event)
 
     @app.get("/health")
     def health():
@@ -147,6 +156,14 @@ def create_app(
             knowledge_cards=len(knowledge.cards),
             quiz_questions=len(quiz_bank.questions),
         ), 200
+
+    @app.get("/ready")
+    def ready():
+        dispatcher_ready = getattr(dispatcher, "ready", lambda: True)()
+        learning_ready = learning_manager.ready()
+        if not dispatcher_ready or not learning_ready:
+            return jsonify(status="not_ready"), 503
+        return jsonify(status="ready"), 200
 
     @app.get("/media/knowledge/<name>")
     def knowledge_media(name: str):
@@ -219,6 +236,7 @@ def _handle_event(
     quiz_manager: QuizManager,
     logger: logging.Logger,
     learning_manager: LearningManager | None = None,
+    rate_limiter: RequestRateLimiter | None = None,
 ) -> None:
     event_id = str(getattr(event, "webhook_event_id", "") or "")
     if not deduplicator.first_seen(event_id):
@@ -234,7 +252,7 @@ def _handle_event(
     user_id = str(getattr(source, "user_id", "") or "")
     try:
         if source_type != "user" or not user_id:
-            _reply(reply_gateway, reply_token, UNSUPPORTED_REPLY)
+            _reply(reply_gateway, reply_token, UNSUPPORTED_REPLY, _home_options())
             logger.info("event=reply_sent category=unsupported_source")
             return
         if isinstance(event, FollowEvent):
@@ -256,7 +274,7 @@ def _handle_event(
             _handle_postback(event, user_id, reply_token, reply_gateway, quiz_manager, logger)
             return
         if not isinstance(event, MessageEvent) or not isinstance(event.message, TextMessageContent):
-            _reply(reply_gateway, reply_token, UNSUPPORTED_REPLY)
+            _reply(reply_gateway, reply_token, UNSUPPORTED_REPLY, _home_options())
             logger.info("event=reply_sent category=unsupported_message")
             return
         text = event.message.text.strip()
@@ -279,6 +297,7 @@ def _handle_event(
             quiz_manager=quiz_manager,
             logger=logger,
             learning_manager=learning_manager,
+            rate_limiter=rate_limiter,
         )
     except Exception as exc:
         deduplicator.forget(event_id)
@@ -298,6 +317,7 @@ def _handle_text(
     quiz_manager: QuizManager,
     logger: logging.Logger,
     learning_manager: LearningManager | None = None,
+    rate_limiter: RequestRateLimiter | None = None,
 ) -> None:
     if learning_manager:
         normalized = normalize_command(text)
@@ -311,10 +331,18 @@ def _handle_text(
                 memory.add(user_id, "目前學習內容", result[0])
                 return
     command = route_command(text)
+    if command is Command.HOME:
+        quiz_manager.quit(user_id)
+        if learning_manager:
+            learning_manager.pause(user_id)
+        _reply(reply_gateway, reply_token, persona.WELCOME_TEXT, _home_options())
+        logger.info("event=reply_sent category=home")
+        return
     if learning_manager and command in (Command.QUIT, Command.CHALLENGE):
         learning_manager.pause(user_id)
     if command is Command.HELP:
-        _reply(reply_gateway, reply_token, persona.HELP_TEXT, _home_options())
+        options = _quiz_help_options() if quiz_manager.current(user_id) else _home_options()
+        _reply(reply_gateway, reply_token, persona.HELP_TEXT, options)
         logger.info("event=reply_sent category=help")
         return
     if command is Command.CHALLENGE:
@@ -369,6 +397,11 @@ def _handle_text(
         logger.info("event=reply_sent category=quiz_reminder")
         return
 
+    if answer_letter in LETTERS:
+        _reply(reply_gateway, reply_token, persona.QUIZ_EXPIRED_TEXT, _home_options())
+        logger.info("event=reply_sent category=quiz_expired_typed_answer")
+        return
+
     if command is Command.GREETING and not memory.get(user_id):
         _reply(reply_gateway, reply_token, persona.WELCOME_TEXT, _home_options())
         memory.add(user_id, text, persona.WELCOME_TEXT)
@@ -377,6 +410,10 @@ def _handle_text(
 
     started = time.monotonic()
     answer = None
+    if rate_limiter is not None and not rate_limiter.allow(user_id):
+        _reply(reply_gateway, reply_token, RATE_LIMIT_REPLY, _home_options())
+        logger.info("event=reply_sent category=rate_limited")
+        return
     try:
         history = memory.get(user_id)
         answer = answer_provider.answer(text, history)
@@ -531,6 +568,14 @@ def _home_options() -> tuple[QuickReplyOption, ...]:
         QuickReplyOption("🔭 問個問題", message_text=secrets.choice(CHILD_QUESTIONS)),
         QuickReplyOption("🗝️ 接受試煉", data="ep:challenge", display_text="挑戰"),
         QuickReplyOption("📜 查看功能", message_text="幫助"),
+    )
+
+
+def _quiz_help_options() -> tuple[QuickReplyOption, ...]:
+    return (
+        QuickReplyOption("📊 目前分數", message_text="分數"),
+        QuickReplyOption("🚪 退出試煉", data="ep:quit", display_text="退出"),
+        QuickReplyOption("🏠 返回首頁", message_text="首頁"),
     )
 
 

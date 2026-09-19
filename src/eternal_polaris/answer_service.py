@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Protocol
 from urllib.parse import quote
 
@@ -14,6 +15,19 @@ OUT_OF_SCOPE_REPLY = (
     "這點我不是很確定，還得再核實。你若願意多說一點背景，我們可以慢慢釐清。"
 )
 SERVICE_ERROR_REPLY = "宇宙訊號暫時受到了干擾。先別急，過一會兒再問我一次吧。"
+_SENSITIVE_PATTERNS = (
+    (re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b"), "[電子郵件已遮罩]"),
+    (re.compile(r"(?<!\d)(?:\+?886[- ]?|0)9\d{2}[- ]?\d{3}[- ]?\d{3}(?!\d)"), "[電話已遮罩]"),
+    (re.compile(r"(?i)\b(?:sk-|AIza)[A-Za-z0-9_-]{16,}\b"), "[金鑰已遮罩]"),
+    (re.compile(r"(?i)\b(?:bearer|api[_ -]?key|token)\s*[:=]\s*\S+"), "[憑證已遮罩]"),
+)
+
+
+def _redact_sensitive(text: str) -> str:
+    redacted = text[:1000]
+    for pattern, replacement in _SENSITIVE_PATTERNS:
+        redacted = pattern.sub(replacement, redacted)
+    return redacted
 
 
 class AnswerProvider(Protocol):
@@ -167,7 +181,8 @@ class OpenAIAnswerService:
         self, question: str, history: tuple[Exchange, ...],
     ) -> tuple[str, frozenset[str]]:
         history_text = "\n".join(
-            f"使用者：{exchange.user}\n永恆北極星：{exchange.assistant}" for exchange in history
+            f"使用者：{_redact_sensitive(exchange.user)}\n永恆北極星：{_redact_sensitive(exchange.assistant)}"
+            for exchange in history[-3:]
         )
         retrieval_query = " ".join((*[item.user for item in history[-3:]], question))
         context_cards = self._knowledge.context_cards_for_question(retrieval_query)
@@ -175,7 +190,7 @@ class OpenAIAnswerService:
         evidence = context or "（沒有足夠相關的知識卡；此時不得杜撰卡片 ID 或來源。）"
         prompt = (
             f"最近三組對話（助手舊回答可能有錯，不能當作查證依據）：\n"
-            f"{history_text or '（無）'}\n\n本次問題：{question}\n\n"
+            f"{history_text or '（無）'}\n\n本次問題：{_redact_sensitive(question)}\n\n"
             "本題可用知識卡（只能引用下列 ID；若都不支持答案，source_ids=[]）：\n"
             f"{evidence}"
         )
@@ -184,12 +199,16 @@ class OpenAIAnswerService:
     def _validate_raw_answer(
         self, raw: dict[str, Any], *, allowed_source_ids: frozenset[str],
     ) -> BotAnswer:
-        answer_text = str(raw["answer"]).strip()
+        if not isinstance(raw.get("answer"), str):
+            raise TypeError("answer 必須是字串")
+        answer_text = raw["answer"].strip()
         if not 1 <= len(answer_text) <= 700:
             raise ValueError("模型答案長度超出允許範圍")
         source_ids = raw["source_ids"]
         if not isinstance(source_ids, list):
             raise TypeError("source_ids 必須是陣列")
+        if any(not isinstance(value, str) for value in source_ids):
+            raise TypeError("source_ids 只能包含字串")
         if any(str(value) not in allowed_source_ids for value in source_ids):
             raise ValueError("模型引用了本題未提供的知識卡")
         answer = BotAnswer(
@@ -220,7 +239,7 @@ class OpenAIAnswerService:
                 answer="你說的是哪一顆彗星呢？這個名稱我還辨認不準，不想把它和望遠鏡混為一談。若記得別的名字或事件細節，可以再告訴我。",
                 source_ids=(), route="subject_clarification",
             )
-        return answer
+        return self._knowledge.ground_answer(answer)
 
     def _answer_openai(self, prompt: str) -> dict[str, Any]:
         response = self._client.responses.create(

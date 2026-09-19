@@ -67,17 +67,24 @@ class KnowledgeBase:
             for card in cards
         )
         exact_matches: dict[str, KnowledgeCard | None] = {}
-        containment_rows: list[tuple[str, KnowledgeCard]] = []
-        for card, rows in self._search_rows:
+        feature_index: dict[str, set[int]] = {}
+        containment_index: dict[str, list[tuple[str, KnowledgeCard]]] = {}
+        for card_index, (card, rows) in enumerate(self._search_rows):
             for value, _ in rows:
                 if value in exact_matches and exact_matches[value] is not card:
                     exact_matches[value] = None
                 else:
                     exact_matches[value] = card
                 if len(value) >= 5:
-                    containment_rows.append((value, card))
+                    containment_index.setdefault(value[:2], []).append((value, card))
+            for _, features in rows:
+                for feature in features:
+                    feature_index.setdefault(feature, set()).add(card_index)
         self._exact_matches = exact_matches
-        self._containment_rows = tuple(containment_rows)
+        self._feature_index = {key: frozenset(value) for key, value in feature_index.items()}
+        self._containment_index = {
+            key: tuple(value) for key, value in containment_index.items()
+        }
         self._rank_cache: OrderedDict[
             tuple[str, int], tuple[tuple[float, KnowledgeCard], ...]
         ] = OrderedDict()
@@ -156,10 +163,22 @@ class KnowledgeBase:
 
     def _contained_cards(self, normalized: str) -> tuple[KnowledgeCard, ...]:
         matches: dict[str, KnowledgeCard] = {}
-        for value, card in self._containment_rows:
-            if value in normalized:
-                matches.setdefault(card.id, card)
-        return tuple(matches.values())
+        specificity: dict[str, tuple[int, int]] = {}
+        checked: set[tuple[str, str]] = set()
+        for feature in _features(normalized):
+            for value, card in self._containment_index.get(feature, ()):
+                marker = (value, card.id)
+                if marker not in checked and value in normalized:
+                    checked.add(marker)
+                    matches.setdefault(card.id, card)
+                    score = (len(value), -normalized.find(value))
+                    specificity[card.id] = max(specificity.get(card.id, (0, 0)), score)
+        return tuple(
+            matches[card_id]
+            for card_id in sorted(
+                matches, key=lambda item: (-specificity[item][0], -specificity[item][1], item)
+            )
+        )
 
     def _ranked_cards(
         self, normalized: str, limit: int = 12,
@@ -171,8 +190,18 @@ class KnowledgeBase:
                 self._rank_cache.move_to_end(cache_key)
                 return cached
         query_features = _features(normalized)
+        candidate_hits: Counter[int] = Counter()
+        for feature in query_features:
+            candidate_hits.update(self._feature_index.get(feature, ()))
+        candidate_indexes = (
+            index
+            for index, _ in sorted(
+                candidate_hits.items(), key=lambda item: (-item[1], item[0])
+            )[:256]
+        )
         ranked: list[tuple[float, str, KnowledgeCard]] = []
-        for card, rows in self._search_rows:
+        for index in candidate_indexes:
+            card, rows = self._search_rows[index]
             score = max(
                 0.58 * _cosine(query_features, features)
                 + 0.42 * SequenceMatcher(None, normalized, value).ratio()
@@ -215,6 +244,8 @@ class KnowledgeBase:
             return None
 
         ranked = self._ranked_cards(normalized, 2)
+        if not ranked:
+            return None
         best_score, best_card = ranked[0]
         runner_up = ranked[1][0] if len(ranked) > 1 else 0.0
         if best_score >= min_score and best_score - runner_up >= min_margin:
@@ -247,6 +278,36 @@ class KnowledgeBase:
         if not any(card.label is answer.label for card in source_cards):
             raise KnowledgeError("回答至少需要一個與主要分類一致的來源")
         return answer
+
+    def ground_answer(self, answer: BotAnswer) -> BotAnswer:
+        """Render science claims only from the cited cards' reviewed facts."""
+        answer = self.validate_answer(answer)
+        if not answer.source_ids:
+            return answer
+        facts: list[str] = []
+        for source_id in answer.source_ids:
+            for fact in self.by_id[source_id].facts:
+                sentence = fact.rstrip("。！？") + "。"
+                if sentence not in facts:
+                    facts.append(sentence)
+        text = "".join(facts)
+        if len(text) > 700:
+            kept: list[str] = []
+            length = 0
+            for fact in facts:
+                if length + len(fact) > 700:
+                    break
+                kept.append(fact)
+                length += len(fact)
+            text = "".join(kept)
+        if not text:
+            raise KnowledgeError("引用來源沒有可顯示的已審核事實")
+        return BotAnswer(
+            label=answer.label,
+            answer=text,
+            source_ids=answer.source_ids,
+            route="model_grounded",
+        )
 
     def source_names(self, source_ids: tuple[str, ...]) -> list[str]:
         names: list[str] = []

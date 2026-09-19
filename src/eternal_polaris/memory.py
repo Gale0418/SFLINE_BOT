@@ -107,3 +107,48 @@ class EventDeduplicator:
         expired = [key for key, seen_at in self._seen.items() if now - seen_at > self._ttl_seconds]
         for key in expired:
             self._seen.pop(key, None)
+
+
+class RequestRateLimiter:
+    """Small in-process sliding-window guard for public free-form requests."""
+
+    def __init__(
+        self,
+        *,
+        salt: str,
+        per_user_per_minute: int = 12,
+        global_per_minute: int = 120,
+        max_users: int = 10_000,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if per_user_per_minute < 1 or global_per_minute < per_user_per_minute or max_users < 1:
+            raise ValueError("速率限制必須為正數，且全域限制不得小於單一使用者限制")
+        self._salt = salt
+        self._per_user = per_user_per_minute
+        self._global = global_per_minute
+        self._max_users = max_users
+        self._clock = clock
+        self._users: dict[str, deque[float]] = {}
+        self._all: deque[float] = deque()
+        self._lock = threading.Lock()
+
+    def allow(self, user_id: str) -> bool:
+        now = self._clock()
+        cutoff = now - 60.0
+        key = hashlib.sha256(f"{self._salt}:{user_id}".encode()).hexdigest()
+        with self._lock:
+            while self._all and self._all[0] <= cutoff:
+                self._all.popleft()
+            bucket = self._users.get(key)
+            if bucket is None:
+                if len(self._users) >= self._max_users:
+                    self._users.pop(next(iter(self._users)))
+                bucket = deque()
+                self._users[key] = bucket
+            while bucket and bucket[0] <= cutoff:
+                bucket.popleft()
+            if len(bucket) >= self._per_user or len(self._all) >= self._global:
+                return False
+            bucket.append(now)
+            self._all.append(now)
+            return True

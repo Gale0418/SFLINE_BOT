@@ -54,6 +54,7 @@ class Settings:
     knowledge_path: Path = Path("data/knowledge_cards.json")
     quiz_path: Path = Path("data/quiz_questions.tsv")
     learning_path: Path = Path("data/private/learning.sqlite3")
+    webhook_store_path: Path = Path("data/private/webhooks.sqlite3")
     memory_ttl_seconds: int = 1800
     dedupe_ttl_seconds: int = 600
     quiz_ttl_seconds: int = 1800
@@ -179,6 +180,7 @@ class Settings:
                 knowledge_path=Path(os.getenv("KNOWLEDGE_PATH", "data/knowledge_cards.json")),
                 quiz_path=Path(os.getenv("QUIZ_PATH", "data/quiz_questions.tsv")),
                 learning_path=Path(os.getenv("LEARNING_PATH", "data/private/learning.sqlite3")),
+                webhook_store_path=Path(os.getenv("WEBHOOK_STORE_PATH", "data/private/webhooks.sqlite3")),
                 memory_ttl_seconds=int(os.getenv("MEMORY_TTL_SECONDS", "1800")),
                 dedupe_ttl_seconds=int(os.getenv("DEDUPE_TTL_SECONDS", "600")),
                 quiz_ttl_seconds=int(os.getenv("QUIZ_TTL_SECONDS", "1800")),

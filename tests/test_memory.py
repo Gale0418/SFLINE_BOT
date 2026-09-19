@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from eternal_polaris.memory import ConversationMemory, EventDeduplicator
+from eternal_polaris.memory import (
+    ConversationMemory,
+    EventDeduplicator,
+    RequestRateLimiter,
+)
 
 
 def test_memory_keeps_last_three_and_expires():
@@ -37,3 +41,17 @@ def test_memory_purges_inactive_users_and_bounds_user_count():
     memory.add("u4", "q", "a")
     assert memory.get("u2") == ()
     assert memory.get("u3") == ()
+
+
+def test_request_rate_limiter_enforces_user_and_global_windows():
+    now = [100.0]
+    limiter = RequestRateLimiter(
+        salt="salt", per_user_per_minute=2, global_per_minute=3, clock=lambda: now[0]
+    )
+    assert limiter.allow("u1")
+    assert limiter.allow("u1")
+    assert not limiter.allow("u1")
+    assert limiter.allow("u2")
+    assert not limiter.allow("u3")
+    now[0] += 61
+    assert limiter.allow("u1")

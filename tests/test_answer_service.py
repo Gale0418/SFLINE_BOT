@@ -105,7 +105,7 @@ def test_openai_uses_structured_output_and_store_false(knowledge):
     answer = service.answer(card.canonical_question, ())
     assert service.provider_name == "openai"
     assert answer.source_ids == (card.id,)
-    assert answer.route == "model"
+    assert answer.route == "model_grounded"
     assert responses.kwargs["store"] is False
     assert responses.kwargs["reasoning"] == {"effort": "none"}
     assert "temperature" not in responses.kwargs
@@ -123,7 +123,7 @@ def test_gemma_4_31b_uses_documented_google_contract_without_schema_gamble(knowl
 
     assert service.provider_name == "google"
     assert answer.source_ids == (card.id,)
-    assert answer.route == "model"
+    assert answer.route == "model_grounded"
     assert client.url.endswith("/models/gemma-4-31b-it:generateContent")
     assert client.headers["x-goog-api-key"] == "google-key"
     config = client.body["generationConfig"]
@@ -158,8 +158,20 @@ def test_google_response_ignores_thought_parts(knowledge):
     )
     service = OpenAIAnswerService("google-key", "gemma-4-31b-it", knowledge, client=client)
     answer = service.answer(card.canonical_question, ())
-    assert answer.answer == "可公開顯示的答案。"
+    assert answer.answer == "".join(fact.rstrip("。！？") + "。" for fact in card.facts)
     assert "internal" not in answer.answer
+
+
+def test_science_model_claim_is_replaced_by_cited_reviewed_facts(knowledge):
+    card = next(card for card in knowledge.cards if card.label is ScienceLabel.OBSERVED_VERIFIED)
+    client = FakeGoogleClient(
+        {"label": card.label.value, "answer": "這是一句沒有被來源支持的主張。", "source_ids": [card.id]}
+    )
+    service = OpenAIAnswerService("google-key", "gemma-4-31b-it", knowledge, client=client)
+    answer = service.answer(card.canonical_question, ())
+    assert "沒有被來源支持" not in answer.answer
+    assert all(fact.rstrip("。！？") in answer.answer for fact in card.facts)
+    assert answer.route == "model_grounded"
 
 
 def test_hybrid_uses_local_card_for_exact_question(knowledge):
@@ -214,6 +226,27 @@ def test_model_cannot_cite_card_outside_retrieved_evidence(knowledge):
     service = OpenAIAnswerService("test", "gemma-4-26b-a4b-it", knowledge, client=client)
     with pytest.raises(ValueError, match="未提供"):
         service.answer(first.canonical_question, ())
+
+
+def test_google_contract_rejects_non_string_answer_and_source_ids(knowledge):
+    card = knowledge.cards[0]
+    client = FakeGoogleClient(
+        {"label": card.label.value, "answer": ["bad"], "source_ids": [card.id]}
+    )
+    service = OpenAIAnswerService("test", "gemma-4-26b-a4b-it", knowledge, client=client)
+    with pytest.raises(TypeError, match="answer 必須是字串"):
+        service.answer(card.canonical_question, ())
+
+
+def test_provider_prompt_masks_common_sensitive_values(knowledge):
+    client = FakeGoogleClient({"label": "chat", "answer": "已遮罩。", "source_ids": []})
+    service = OpenAIAnswerService("test", "gemma-4-26b-a4b-it", knowledge, client=client)
+    service.answer("我的信箱是 me@example.com，手機 0912-345-678", ())
+    prompt = client.body["contents"][0]["parts"][0]["text"]
+    assert "me@example.com" not in prompt
+    assert "0912-345-678" not in prompt
+    assert "[電子郵件已遮罩]" in prompt
+    assert "[電話已遮罩]" in prompt
 
 
 def test_chat_cannot_claim_science_sources(knowledge):

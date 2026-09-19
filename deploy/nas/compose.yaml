@@ -23,18 +23,18 @@ services:
       - ${POLARIS_DATA_DIR:-/volume1/docker/eternal-polaris/data/private}:/app/data/private
       - /volume1/docker/eternal-polaris/backups:/app/backups
     ports:
-      - "5050:5000"
+      - "127.0.0.1:5050:5000"
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
 
   ngrok:
-    image: ngrok/ngrok:3.39.11-alpine
+    image: ngrok/ngrok:3.39.11-alpine@sha256:187e588f6c4efe3b29cd3eea9fcd768a1afa7342319e3cee9aeb5af6a9cf64fd
     container_name: eternal-polaris-ngrok
     restart: unless-stopped
-    env_file:
-      - ../../.env
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?請在專案 .env 設定 NGROK_AUTHTOKEN}
     dns:
       - 1.1.1.1
       - 8.8.8.8
