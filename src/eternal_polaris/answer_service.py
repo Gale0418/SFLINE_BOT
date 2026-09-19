@@ -10,7 +10,6 @@ from openai import OpenAI
 from .knowledge import KnowledgeBase
 from .models import BotAnswer, Exchange, ScienceLabel
 
-
 OUT_OF_SCOPE_REPLY = (
     "這點我不是很確定，還得再核實。你若願意多說一點背景，我們可以慢慢釐清。"
 )
@@ -63,7 +62,7 @@ def _parse_json_payload(text: str) -> dict[str, Any]:
             cleaned = "\n".join(lines[1:-1]).strip()
     raw = json.loads(cleaned)
     if not isinstance(raw, dict):
-        raise ValueError("模型輸出必須是 JSON object")
+        raise TypeError("模型輸出必須是 JSON object")
     return raw
 
 
@@ -73,10 +72,10 @@ def _google_output_text(payload: dict[str, Any]) -> str:
         raise ValueError("Google API 未回傳候選答案")
     content = candidates[0].get("content")
     if not isinstance(content, dict):
-        raise ValueError("Google API 回傳格式缺少 content")
+        raise TypeError("Google API 回傳格式缺少 content")
     parts = content.get("parts")
     if not isinstance(parts, list):
-        raise ValueError("Google API 回傳格式缺少 parts")
+        raise TypeError("Google API 回傳格式缺少 parts")
     text_parts = [
         str(part["text"])
         for part in parts
@@ -161,23 +160,38 @@ class OpenAIAnswerService:
             "若答案由知識卡支持，才使用以下三種科學分類並附來源；科學推測不能說成已證實。"
             "不要只因話題不同就輸出 out_of_scope 或引導使用者去挑戰。"
             "observed_verified 代表已有觀測或實驗證據；theoretical_unrealized 代表有理論描述但未實現；"
-            "science_fiction 代表作品設定或超出現有理論支持。若比較多種狀態，先逐項說清楚，再選主要結論作 label。\n\n"
-            "知識卡：\n" + self._knowledge.prompt_context()
+            "science_fiction 代表作品設定或超出現有理論支持。若比較多種狀態，先逐項說清楚，再選主要結論作 label。"
         )
 
-    def _prompt(self, question: str, history: tuple[Exchange, ...]) -> str:
+    def _prompt(
+        self, question: str, history: tuple[Exchange, ...],
+    ) -> tuple[str, frozenset[str]]:
         history_text = "\n".join(
             f"使用者：{exchange.user}\n永恆北極星：{exchange.assistant}" for exchange in history
         )
-        return f"最近三組對話（助手舊回答可能有錯，不能當作查證依據）：\n{history_text or '（無）'}\n\n本次問題：{question}"
+        retrieval_query = " ".join((*[item.user for item in history[-3:]], question))
+        context_cards = self._knowledge.context_cards_for_question(retrieval_query)
+        context = self._knowledge.prompt_context(context_cards)
+        evidence = context or "（沒有足夠相關的知識卡；此時不得杜撰卡片 ID 或來源。）"
+        prompt = (
+            f"最近三組對話（助手舊回答可能有錯，不能當作查證依據）：\n"
+            f"{history_text or '（無）'}\n\n本次問題：{question}\n\n"
+            "本題可用知識卡（只能引用下列 ID；若都不支持答案，source_ids=[]）：\n"
+            f"{evidence}"
+        )
+        return prompt, frozenset(card.id for card in context_cards)
 
-    def _validate_raw_answer(self, raw: dict[str, Any]) -> BotAnswer:
+    def _validate_raw_answer(
+        self, raw: dict[str, Any], *, allowed_source_ids: frozenset[str],
+    ) -> BotAnswer:
         answer_text = str(raw["answer"]).strip()
         if not 1 <= len(answer_text) <= 700:
             raise ValueError("模型答案長度超出允許範圍")
         source_ids = raw["source_ids"]
         if not isinstance(source_ids, list):
-            raise ValueError("source_ids 必須是陣列")
+            raise TypeError("source_ids 必須是陣列")
+        if any(str(value) not in allowed_source_ids for value in source_ids):
+            raise ValueError("模型引用了本題未提供的知識卡")
         answer = BotAnswer(
             label=ScienceLabel(raw["label"]),
             answer=answer_text,
@@ -187,12 +201,12 @@ class OpenAIAnswerService:
         return self._knowledge.validate_answer(answer)
 
     def answer(self, question: str, history: tuple[Exchange, ...]) -> BotAnswer:
-        prompt = self._prompt(question, history)
+        prompt, allowed_source_ids = self._prompt(question, history)
         if self._google_backend:
             raw = self._answer_google(prompt)
         else:
             raw = self._answer_openai(prompt)
-        answer = self._validate_raw_answer(raw)
+        answer = self._validate_raw_answer(raw, allowed_source_ids=allowed_source_ids)
         # Detect a narrow category mismatch without inventing a corrected name.
         subject = question
         if history and question.strip(" ？?。") in ("那是哪一年", "那是哪一年的消息", "哪一年", "幾年"):
@@ -276,7 +290,7 @@ class OpenAIAnswerService:
         response.raise_for_status()
         payload = response.json()
         if not isinstance(payload, dict):
-            raise ValueError("Google API 回傳格式無效")
+            raise TypeError("Google API 回傳格式無效")
         return _parse_json_payload(_google_output_text(payload))
 
 

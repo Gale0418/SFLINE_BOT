@@ -161,13 +161,18 @@ def test_guided_learning_webhook_and_free_question(settings, knowledge, quiz_ban
 
 
 def test_ten_child_questions_have_correct_sources_and_random_buttons(knowledge, monkeypatch):
-    from eternal_polaris.app import CHILD_QUESTIONS, _home_options, _after_answer_options, _rules_options
+    from eternal_polaris.app import (
+        CHILD_QUESTIONS,
+        _after_answer_options,
+        _home_options,
+        _rules_options,
+    )
 
     assert len(set(CHILD_QUESTIONS)) == 10
     expected = ["ov024", "ov025", "ov026", "ov027", "ov028", "ov029", "ov030", "ov031", "ov032", "ov033"]
     for question, card_id in zip(CHILD_QUESTIONS, expected, strict=True):
         assert knowledge.match_question(question).id == card_id
-        monkeypatch.setattr("eternal_polaris.app.random.choice", lambda pool, q=question: q)
+        monkeypatch.setattr("eternal_polaris.app.secrets.choice", lambda pool, q=question: q)
         assert next(o for o in _home_options() if o.label == "🔭 問個問題").message_text == question
         assert next(o for o in _after_answer_options() if o.label == "🔭 問個問題").message_text == question
         assert _rules_options()[1].message_text == question

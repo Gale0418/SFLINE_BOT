@@ -49,7 +49,7 @@ OPENAI_API_KEY=你的_OpenAI_Key
 OPENAI_MODEL=gpt-5.6-luna
 ```
 
-兩條路徑都使用相同的 1234 張人工知識卡、相同 JSON 輸出契約與相同程式端驗證；OpenAI 路徑使用 Responses API structured output。
+兩條路徑都使用相同的 1234 張人工知識卡、相同 JSON 輸出契約與相同程式端驗證；OpenAI 路徑使用 Responses API structured output。模型呼叫只會收到與本題最相關、最多 12 張的本機證據卡，而不是把整座 1234 卡知識庫塞進每次請求；程式也會拒絕模型引用本題未提供的卡片 ID。
 
 ## 主要功能
 
@@ -128,10 +128,11 @@ LINE Webhook
   ├─ QuizManager（簽章、TTL、進度、評分）
   └─ HybridAnswerService
        ├─ 高信心 → 本機 1234 張知識卡
-       └─ 其他 → Google Gemma 4 26B A4B 或 OpenAI Luna
+       └─ 其他 → 擷取最多 12 張相關證據卡
+                    └─ Google Gemma 4 26B A4B 或 OpenAI Luna
 ```
 
-系統不做即時網路搜尋、RAG、向量資料庫、自行訓練模型或永久聊天紀錄。試煉題目不由 AI 臨場生成，避免答案漂移與展示時翻車。
+系統不做即時網路搜尋、向量資料庫、自行訓練模型或永久聊天紀錄。模型 fallback 只做有界的本機詞彙檢索，最多附上 12 張相關證據卡；試煉題目不由 AI 臨場生成，避免答案漂移與展示時翻車。
 
 ## 系統需求
 

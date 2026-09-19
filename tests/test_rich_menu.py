@@ -2,7 +2,13 @@ from pathlib import Path
 
 import httpx
 
-from eternal_polaris.rich_menu import BUTTONS, HEIGHT, WIDTH, build_rich_menu_object, install_default_rich_menu
+from eternal_polaris.rich_menu import (
+    BUTTONS,
+    HEIGHT,
+    WIDTH,
+    build_rich_menu_object,
+    install_default_rich_menu,
+)
 
 
 def test_rich_menu_uses_six_existing_bot_commands_without_gaps():

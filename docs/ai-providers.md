@@ -26,6 +26,7 @@ Google Gemma 4 路徑：
 - 使用 `x-goog-api-key` 認證。
 - 使用官方支援的 `systemInstruction`。
 - Gemma 4 thinking level 設為 `minimal`，降低 LINE 回覆延遲。
+- 每次模型請求只附上最多 12 張與當前問題及最近對話相關的本機證據卡，不傳送完整 1234 卡全文；程式會拒絕未出現在該次證據包的來源 ID。
 - 目前 Google Structured Outputs 的支援模型清單未明列 Gemma 4，因此本專案**不把 Gemma 4 的可用性賭在 response schema 上**：要求模型只輸出 JSON，再由程式嚴格解析並驗證 label、來源 ID、答案長度與知識卡引用。
 - 若未來改成支援 Structured Outputs 的 `gemini-*` 模型，Google 路徑才會送出 JSON schema。
 

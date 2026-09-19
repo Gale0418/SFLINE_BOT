@@ -5,7 +5,6 @@ from pathlib import Path
 from eternal_polaris.evaluation import compute_metrics, load_questions, run_online
 from eternal_polaris.models import BotAnswer, ScienceLabel
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import json
-import pytest
 from types import SimpleNamespace
 
-from eternal_polaris.answer_service import HybridAnswerService, OpenAIAnswerService, render_answer
-from eternal_polaris.models import BotAnswer, Exchange, ScienceLabel
+import pytest
+
+from eternal_polaris.answer_service import (
+    HybridAnswerService,
+    OpenAIAnswerService,
+    render_answer,
+)
 from eternal_polaris.knowledge import KnowledgeError
+from eternal_polaris.models import BotAnswer, Exchange, ScienceLabel
 
 
 class FakeResponses:
@@ -183,6 +188,32 @@ def test_chat_is_natural_text_and_receives_history(knowledge):
     answer = service.answer("今天有點累", history)
     assert render_answer(answer, knowledge) == "考試讓你累壞了嗎？"
     assert "我在準備考試" in client.body["contents"][0]["parts"][0]["text"]
+
+
+def test_model_prompt_uses_bounded_relevant_knowledge_context(knowledge):
+    card = knowledge.cards[0]
+    client = FakeGoogleClient(
+        {"label": card.label.value, "answer": "有來源的回答。", "source_ids": [card.id]}
+    )
+    service = OpenAIAnswerService("test", "gemma-4-26b-a4b-it", knowledge, client=client)
+    service.answer(card.canonical_question, ())
+
+    system_text = client.body["systemInstruction"]["parts"][0]["text"]
+    prompt_text = client.body["contents"][0]["parts"][0]["text"]
+    assert len(system_text) < 20_000
+    assert len(prompt_text) < 20_000
+    assert f"[{card.id}]" in prompt_text
+    assert "只能引用下列 ID" in prompt_text
+
+
+def test_model_cannot_cite_card_outside_retrieved_evidence(knowledge):
+    first, unrelated = knowledge.cards[0], knowledge.cards[-1]
+    client = FakeGoogleClient(
+        {"label": unrelated.label.value, "answer": "錯誤引用。", "source_ids": [unrelated.id]}
+    )
+    service = OpenAIAnswerService("test", "gemma-4-26b-a4b-it", knowledge, client=client)
+    with pytest.raises(ValueError, match="未提供"):
+        service.answer(first.canonical_question, ())
 
 
 def test_chat_cannot_claim_science_sources(knowledge):

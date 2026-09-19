@@ -2,15 +2,21 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import random
+import secrets
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from flask import Flask, Response, abort, jsonify, request, send_from_directory
 from linebot.v3 import WebhookParser
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.webhooks import FollowEvent, MessageEvent, PostbackEvent, TextMessageContent
+from linebot.v3.webhooks import (
+    FollowEvent,
+    MessageEvent,
+    PostbackEvent,
+    TextMessageContent,
+)
 
 from . import persona
 from .answer_service import (
@@ -25,7 +31,7 @@ from .config import Settings
 from .dispatcher import EventDispatcher, ThreadPoolEventDispatcher
 from .knowledge import KnowledgeBase
 from .knowledge_images import FEATURED_IMAGE_FILES, image_filename_for_sources
-from .learning import LearningManager, ROUTE_COMMANDS
+from .learning import ROUTE_COMMANDS, LearningManager
 from .line_gateway import LineReplyGateway, QuickReplyOption, ReplyGateway
 from .memory import ConversationMemory, EventDeduplicator
 from .quiz import (
@@ -38,7 +44,6 @@ from .quiz import (
     QuizSession,
     answer_postback_data,
 )
-
 
 UNSUPPORTED_REPLY = "我目前只看得懂一對一聊天室中的文字訊息。圖片與群組試煉，先留給下一張星圖吧。"
 QUESTION_TOO_LONG_REPLY = "這段訊息太長了。請把問題縮短到 1000 個字以內，我們再慢慢談。"
@@ -166,7 +171,7 @@ def create_app(
         except InvalidSignatureError:
             app.logger.warning("event=webhook_rejected reason=invalid_signature")
             abort(400)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - parser errors are an HTTP trust boundary
             app.logger.warning(
                 "event=webhook_rejected reason=parse_error error_type=%s",
                 type(exc).__name__,
@@ -200,7 +205,7 @@ def _event_key(event: Any, salt: str) -> str:
         or getattr(event, "webhook_event_id", None)
         or "anonymous"
     )
-    return hashlib.sha256(f"{salt}:{source_type}:{identity}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"{salt}:{source_type}:{identity}".encode()).hexdigest()
 
 
 def _handle_event(
@@ -376,7 +381,7 @@ def _handle_text(
         history = memory.get(user_id)
         answer = answer_provider.answer(text, history)
         rendered = render_answer(answer, knowledge)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - provider failures must degrade to a safe reply
         logger.error("event=answer_failed category=service_error error_type=%s", type(exc).__name__)
         rendered = SERVICE_ERROR_REPLY
     hero_filename = image_filename_for_sources(answer.source_ids) if answer is not None else ""
@@ -523,7 +528,7 @@ def _reply(
 def _home_options() -> tuple[QuickReplyOption, ...]:
     return (
         QuickReplyOption("🌱 導引式學習", message_text="學習"),
-        QuickReplyOption("🔭 問個問題", message_text=random.choice(CHILD_QUESTIONS)),
+        QuickReplyOption("🔭 問個問題", message_text=secrets.choice(CHILD_QUESTIONS)),
         QuickReplyOption("🗝️ 接受試煉", data="ep:challenge", display_text="挑戰"),
         QuickReplyOption("📜 查看功能", message_text="幫助"),
     )
@@ -532,7 +537,7 @@ def _home_options() -> tuple[QuickReplyOption, ...]:
 def _after_answer_options() -> tuple[QuickReplyOption, ...]:
     return (
         QuickReplyOption("🌱 繼續學習", message_text="繼續學習"),
-        QuickReplyOption("🔭 問個問題", message_text=random.choice(CHILD_QUESTIONS)),
+        QuickReplyOption("🔭 問個問題", message_text=secrets.choice(CHILD_QUESTIONS)),
         QuickReplyOption("🗝️ 接受試煉", data="ep:challenge", display_text="挑戰"),
         QuickReplyOption("📜 查看功能", message_text="幫助"),
     )
@@ -541,7 +546,7 @@ def _after_answer_options() -> tuple[QuickReplyOption, ...]:
 def _rules_options() -> tuple[QuickReplyOption, ...]:
     return (
         QuickReplyOption("🗝️ 開始試煉", data="ep:challenge", display_text="挑戰"),
-        QuickReplyOption("🔭 回到問答", message_text=random.choice(CHILD_QUESTIONS)),
+        QuickReplyOption("🔭 回到問答", message_text=secrets.choice(CHILD_QUESTIONS)),
     )
 
 

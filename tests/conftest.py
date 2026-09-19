@@ -8,7 +8,6 @@ from eternal_polaris.config import Settings
 from eternal_polaris.knowledge import KnowledgeBase
 from eternal_polaris.quiz import QuizBank
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

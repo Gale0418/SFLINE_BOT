@@ -13,7 +13,6 @@ from .commands import normalize_command
 from .line_gateway import QuickReplyOption
 from .quiz import VAULTS
 
-
 # Each checkpoint explicitly names its prerequisite card. Reuse reviewed
 # content instead of maintaining another competing factual answer database.
 STAGES = (
@@ -56,7 +55,17 @@ class LearningManager:
 
     @staticmethod
     def _new():
-        return dict(unlocked=0, stage=0, lesson=0, phase="paused", nonce=secrets.token_hex(8), best={}, score=0, index=0, wrong=[])
+        return {
+            "unlocked": 0,
+            "stage": 0,
+            "lesson": 0,
+            "phase": "paused",
+            "nonce": secrets.token_hex(8),
+            "best": {},
+            "score": 0,
+            "index": 0,
+            "wrong": [],
+        }
 
     def _sign(self, key, nonce, action):
         return hmac.new(self.salt, f"{key}:{nonce}:{action}".encode(), hashlib.sha256).hexdigest()[:24]

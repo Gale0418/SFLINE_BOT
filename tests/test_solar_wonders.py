@@ -1,9 +1,8 @@
 from collections import Counter
-from pathlib import Path
 
 import pytest
 
-from eternal_polaris.secret_migration import import_openai_key, SecretMigrationError
+from eternal_polaris.secret_migration import SecretMigrationError, import_openai_key
 
 
 @pytest.mark.parametrize("card_id", [f"sw{i:03}" for i in range(1, 27)])

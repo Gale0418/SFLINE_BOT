@@ -6,7 +6,6 @@ import re
 import tempfile
 from pathlib import Path
 
-
 COMMON_REQUIRED_NAMES = (
     "NGROK_AUTHTOKEN",
     "LINE_CHANNEL_SECRET",
@@ -137,7 +136,7 @@ def main() -> None:
     if args.openai_source:
         try:
             import_openai_key(args.openai_source, args.output)
-        except (SecretMigrationError, OSError, UnicodeError) as exc:
+        except (SecretMigrationError, OSError, UnicodeError):
             raise SystemExit("OpenAI 金鑰匯入失敗；請檢查來源格式與本機檔案權限") from None
         print("OPENAI_API_KEY 已存入本機；其他設定與原始檔保留，未進行 API 呼叫。")
         return

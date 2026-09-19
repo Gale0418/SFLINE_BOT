@@ -7,14 +7,13 @@ import math
 import statistics
 import time
 from collections import Counter
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from .answer_service import OpenAIAnswerService
 from .config import Settings
 from .knowledge import KnowledgeBase
 from .models import ScienceLabel
-
 
 IN_SCOPE_LABELS = (
     ScienceLabel.OBSERVED_VERIFIED,
@@ -127,7 +126,7 @@ def run_online(rows: list[dict[str, str]], settings: Settings, knowledge: Knowle
                     "manual_fact_score": None,
                 }
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - every failed sample belongs in the report
             records.append(
                 {
                     "id": row["id"],

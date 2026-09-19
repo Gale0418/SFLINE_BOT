@@ -72,6 +72,14 @@ def test_conservative_matcher_accepts_exact_alias_but_rejects_operational_prompt
     assert knowledge.match_question("黑洞") is None
 
 
+def test_question_context_is_relevant_and_bounded(knowledge):
+    card = knowledge.cards[0]
+    context = knowledge.context_for_question(card.canonical_question)
+    assert f"[{card.id}]" in context
+    assert len(context.splitlines()) <= 12
+    assert len(context) < len(knowledge.prompt_context()) // 10
+
+
 @pytest.mark.parametrize("question, expected", [
     ("水星夕陽", "sw057"),
     ("天王星臭蛋味", "sw063"),

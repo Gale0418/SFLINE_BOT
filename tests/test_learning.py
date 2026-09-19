@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from eternal_polaris.learning import LearningManager, STAGES
+from eternal_polaris.learning import LearningManager
 
 
 @pytest.fixture
@@ -147,7 +147,13 @@ def test_lessons_have_teaching_and_sources_before_questions(manager):
     for route, stages in manager.routes.items():
         for stage, (_, lessons) in enumerate(stages):
             for lesson, (_, qid) in enumerate(lessons):
-                state = dict(route=route, stage=stage, lesson=lesson, phase="lesson", nonce="test")
+                state = {
+                    "route": route,
+                    "stage": stage,
+                    "lesson": lesson,
+                    "phase": "lesson",
+                    "nonce": "test",
+                }
                 text, options = manager._render("test", state)
                 q = manager.bank.by_id[qid]
                 assert q.explanation in text and q.correct_text in text and q.source_url in text

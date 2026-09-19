@@ -7,7 +7,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-
 REQUIRED_SECRET_NAMES = (
     "LINE_CHANNEL_SECRET",
     "LINE_CHANNEL_ACCESS_TOKEN",
@@ -134,7 +133,7 @@ class Settings:
             )
 
     @classmethod
-    def from_env(cls, env_file: str | Path = ".env") -> "Settings":
+    def from_env(cls, env_file: str | Path = ".env") -> Settings:
         load_dotenv(dotenv_path=env_file, override=False, interpolate=False)
 
         missing = [name for name in REQUIRED_SECRET_NAMES if not os.getenv(name, "").strip()]

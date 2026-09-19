@@ -9,7 +9,6 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 
-
 WIDTH, HEIGHT = 2500, 843
 BUTTONS = (
     ("觀星入門", "星等是什麼？"),

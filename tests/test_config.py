@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
 
-from eternal_polaris.config import ConfigurationError, Settings
+import pytest
 
+from eternal_polaris.config import ConfigurationError, Settings
 
 _ENV_SECRET_NAMES = (
     "OPENAI_API_KEY",

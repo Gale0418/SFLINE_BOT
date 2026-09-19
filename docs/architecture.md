@@ -44,7 +44,8 @@ flowchart LR
     D -->|Challenge / Answer| Z[QuizManager]
     D -->|普通問題| H[HybridAnswerService]
     H -->|高信心| K[1234 張本機知識卡]
-    H -->|其他| S{AI_PROVIDER}
+    H -->|其他| R[最多 12 張相關證據卡]
+    R --> S{AI_PROVIDER}
     S -->|google| G[Gemini API / Gemma 4 26B A4B]
     S -->|openai| O[OpenAI Responses / Luna]
     Z --> B[300 題固定題庫]
@@ -76,11 +77,12 @@ flowchart LR
   └─ 一般問題
        ├─ 知識卡高信心命中 → 固定事實回答（0 API 成本）
        └─ 不確定
-            ├─ Google → Gemma 4 26B A4B
-            └─ OpenAI → Luna
+            └─ 最多 12 張相關證據卡
+                 ├─ Google → Gemma 4 26B A4B
+                 └─ OpenAI → Luna
 ```
 
-本機 matcher 依序使用 exact、唯一 contained alias 與保守相似度；操作型要求如「幫我寫黑洞遊戲」會被排除，不能因包含科學詞彙就誤命中。
+本機 matcher 依序使用 exact、唯一 contained alias 與保守相似度；操作型要求如「幫我寫黑洞遊戲」會被排除，不能因包含科學詞彙就誤命中。若仍需模型，系統只附上最多 12 張詞彙最相關的證據卡，避免 1234 張全文造成龐大輸入、延遲與額度浪費；輸出若引用未提供的卡片 ID，會在送出 LINE 前被拒絕。
 
 ## 6. 試煉狀態
 

@@ -4,8 +4,8 @@ import hashlib
 import threading
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from .models import Exchange
 
@@ -34,7 +34,7 @@ class ConversationMemory:
         self._lock = threading.Lock()
 
     def key_for(self, user_id: str) -> str:
-        return hashlib.sha256(f"{self._salt}:{user_id}".encode("utf-8")).hexdigest()
+        return hashlib.sha256(f"{self._salt}:{user_id}".encode()).hexdigest()
 
     def get(self, user_id: str) -> tuple[Exchange, ...]:
         key = self.key_for(user_id)

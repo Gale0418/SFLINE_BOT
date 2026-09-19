@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import heapq
 import json
 import math
 import re
+import threading
 import unicodedata
-from collections import Counter
+from collections import Counter, OrderedDict
 from difflib import SequenceMatcher
 from pathlib import Path
 from urllib.parse import urlparse
@@ -64,9 +66,25 @@ class KnowledgeBase:
             )
             for card in cards
         )
+        exact_matches: dict[str, KnowledgeCard | None] = {}
+        containment_rows: list[tuple[str, KnowledgeCard]] = []
+        for card, rows in self._search_rows:
+            for value, _ in rows:
+                if value in exact_matches and exact_matches[value] is not card:
+                    exact_matches[value] = None
+                else:
+                    exact_matches[value] = card
+                if len(value) >= 5:
+                    containment_rows.append((value, card))
+        self._exact_matches = exact_matches
+        self._containment_rows = tuple(containment_rows)
+        self._rank_cache: OrderedDict[
+            tuple[str, int], tuple[tuple[float, KnowledgeCard], ...]
+        ] = OrderedDict()
+        self._rank_cache_lock = threading.Lock()
 
     @classmethod
-    def load(cls, path: str | Path) -> "KnowledgeBase":
+    def load(cls, path: str | Path) -> KnowledgeBase:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
         if not isinstance(raw, list):
             raise KnowledgeError("知識庫根節點必須是陣列")
@@ -104,15 +122,75 @@ class KnowledgeBase:
         if len(self.cards) < 76 or any(counts[label] < minimum for label, minimum in baseline.items()):
             raise KnowledgeError("知識庫不得少於原始76張，且不可刪除既有分類基線")
 
-    def prompt_context(self) -> str:
+    def prompt_context(self, cards: tuple[KnowledgeCard, ...] | None = None) -> str:
         rows = []
-        for card in self.cards:
+        for card in self.cards if cards is None else cards:
             facts = "；".join(card.facts)
             rows.append(
                 f"[{card.id}] label={card.label.value}; question={card.canonical_question}; "
                 f"aliases={','.join(card.aliases)}; facts={facts}; source={card.source_name}"
             )
         return "\n".join(rows)
+
+    def context_for_question(self, question: str, *, limit: int = 12) -> str:
+        """Return a small, relevant evidence pack instead of the whole library."""
+        return self.prompt_context(self.context_cards_for_question(question, limit=limit))
+
+    def context_cards_for_question(
+        self, question: str, *, limit: int = 12,
+    ) -> tuple[KnowledgeCard, ...]:
+        if limit < 1:
+            return ()
+        normalized = _normalize(question)
+        if len(normalized) < 3:
+            return ()
+        if normalized in self._exact_matches:
+            card = self._exact_matches[normalized]
+            return (card,) if card is not None else ()
+        contained = self._contained_cards(normalized)
+        if contained:
+            return contained[:limit]
+        ranked = self._ranked_cards(normalized, limit)
+        # Very weak lexical neighbors distract the model more than they help.
+        return tuple(card for score, card in ranked if score >= 0.18)
+
+    def _contained_cards(self, normalized: str) -> tuple[KnowledgeCard, ...]:
+        matches: dict[str, KnowledgeCard] = {}
+        for value, card in self._containment_rows:
+            if value in normalized:
+                matches.setdefault(card.id, card)
+        return tuple(matches.values())
+
+    def _ranked_cards(
+        self, normalized: str, limit: int = 12,
+    ) -> tuple[tuple[float, KnowledgeCard], ...]:
+        cache_key = (normalized, limit)
+        with self._rank_cache_lock:
+            cached = self._rank_cache.get(cache_key)
+            if cached is not None:
+                self._rank_cache.move_to_end(cache_key)
+                return cached
+        query_features = _features(normalized)
+        ranked: list[tuple[float, str, KnowledgeCard]] = []
+        for card, rows in self._search_rows:
+            score = max(
+                0.58 * _cosine(query_features, features)
+                + 0.42 * SequenceMatcher(None, normalized, value).ratio()
+                for value, features in rows
+            )
+            ranked.append((score, card.id, card))
+        result = tuple(
+            (score, card)
+            for score, _, card in heapq.nlargest(
+                min(limit, len(ranked)), ranked, key=lambda item: (item[0], item[1])
+            )
+        )
+        with self._rank_cache_lock:
+            self._rank_cache[cache_key] = result
+            self._rank_cache.move_to_end(cache_key)
+            while len(self._rank_cache) > 512:
+                self._rank_cache.popitem(last=False)
+        return result
 
     def match_question(
         self,
@@ -128,33 +206,15 @@ class KnowledgeBase:
         if len(normalized) < 3:
             return None
 
-        exact: list[KnowledgeCard] = []
-        contained: list[KnowledgeCard] = []
-        for card, rows in self._search_rows:
-            values = [value for value, _ in rows]
-            if normalized in values:
-                exact.append(card)
-            elif any(len(value) >= 5 and value in normalized for value in values):
-                contained.append(card)
-        if len(exact) == 1:
-            return exact[0]
+        if normalized in self._exact_matches:
+            return self._exact_matches[normalized]
+        contained = self._contained_cards(normalized)
         if len(contained) == 1:
             return contained[0]
-        if exact or contained:
+        if contained:
             return None
 
-        query_features = _features(question)
-        ranked: list[tuple[float, KnowledgeCard]] = []
-        for card, rows in self._search_rows:
-            score = max(
-                (
-                    0.58 * _cosine(query_features, features)
-                    + 0.42 * SequenceMatcher(None, normalized, value).ratio()
-                )
-                for value, features in rows
-            )
-            ranked.append((score, card))
-        ranked.sort(key=lambda item: item[0], reverse=True)
+        ranked = self._ranked_cards(normalized, 2)
         best_score, best_card = ranked[0]
         runner_up = ranked[1][0] if len(ranked) > 1 else 0.0
         if best_score >= min_score and best_score - runner_up >= min_margin:

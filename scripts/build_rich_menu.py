@@ -3,7 +3,6 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-
 OUTPUT = Path("assets/line/rich-menu.png")
 FONT = Path("C:/Windows/Fonts/msjh.ttc")
 WIDTH, HEIGHT = 2500, 843

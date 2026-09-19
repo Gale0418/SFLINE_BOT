@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 WELCOME_TEXT = """歡迎。已經很久沒有人走到這張星圖前了。
 
 我是「永恆北極星」。想聊今天的心情，或只是找個人說說話，都可以。我也陪你談天文與科幻物理，守著一座橫跨地球、生命、萬象法則與未來科技的試煉寶庫。
@@ -57,9 +56,12 @@ QUIT_TEXT = """石門在你身後安靜闔上。守門人重新端起茶杯，�
 
 QUIZ_EXPIRED_TEXT = "星圖上的光已經熄滅，這場試煉因等待過久而結束了。不要緊，說「挑戰」便能重新敲門。"
 
-INVALID_TOKEN_TEXT = """守門人看了看那枚符文，緩緩搖頭。
+# This is user-facing copy, not a credential.
+INVALID_TOKEN_TEXT = (  # nosec B105
+    """守門人看了看那枚符文，緩緩搖頭。
 
 「這不是屬於眼前這道門的答案。請使用目前題目下方的選項，或直接輸入 A、B、C、D。」"""
+)
 
 
 def render_score(*, answered: int, total: int, score: int, streak: int) -> str:

@@ -13,3 +13,4 @@
 | LB-E4 | 三輪記憶、錯誤處理與可靠性 | Epic | - | P1 | Review | Codex | LB-E3 | 完成記憶、去重、逾時與隱私日誌 | 可靠性測試通過 | L | execution,verification | 可靠性測試已通過 |
 | LB-E5 | 30 題測試集與評估報表 | Epic | - | P1 | In Progress | Codex | LB-E4 | 使用 Google 路徑完成 30 題評估，保存失敗與指標 | 產生可重跑有效評估報表 | L | verification | 不再以 OpenAI 額度作為 Google 路徑的阻塞 |
 | LB-E6 | 報告、簡報、Demo 與成果封裝 | Epic | - | P2 | In Progress | Codex | LB-E5, LB-005 | 依現況證據完成報告骨架、Demo 矩陣與交付封裝 | 書面與 PPT 對照配分，15 分鐘演練及人工驗收 | L | closeout | 2026-09-13 已重整報告骨架；手機 E2E、有效30題評估與正式截圖仍是 blocker |
+| LB-006 | 全面品質優化與對抗審查 | Task | LB-E4 | P1 | In Progress | Codex | LB-E3 | 全面檢查程式、部署、效能與 LINE 使用體驗，完成三席盲審與證據仲裁 | 全套測試、靜態與安全檢查通過；審查無 P0/P1 且所有有效發現皆有處置 | L | execution,verification | 使用已核准的 4 席、最多 8 回合、45 分鐘評審預算；Antigravity 串流中斷，僅保留不可採信的待定紀錄 |

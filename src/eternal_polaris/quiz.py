@@ -7,11 +7,10 @@ import secrets
 import threading
 import time
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 from random import Random, SystemRandom
-from typing import Callable
-
 
 LETTERS = "ABCD"
 
@@ -181,7 +180,7 @@ class QuizBank:
         self._validate()
 
     @classmethod
-    def load(cls, path: str | Path) -> "QuizBank":
+    def load(cls, path: str | Path) -> QuizBank:
         with Path(path).open("r", encoding="utf-8-sig", newline="") as handle:
             rows = list(csv.DictReader(handle, delimiter="\t"))
         required = {
@@ -228,7 +227,7 @@ class QuizBank:
         rebalanced: dict[str, QuizQuestion] = {}
         for (vault, difficulty), group in grouped.items():
             ordered = sorted(group, key=lambda question: question.id)
-            digest = hashlib.sha256(f"{vault}:{difficulty}".encode("utf-8")).digest()
+            digest = hashlib.sha256(f"{vault}:{difficulty}".encode()).digest()
             offset = digest[0] % len(LETTERS)
             for index, question in enumerate(ordered):
                 target_letter = LETTERS[(index + offset) % len(LETTERS)]

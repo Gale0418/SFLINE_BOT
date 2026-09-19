@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-
 # Ten deliberately balanced galleries, ten cards each.  The list favours
 # foundational ideas, strong visual explanations, the guided-learning themes,
 # and the Taiwan-local material that gives Eternal Polaris its own identity.

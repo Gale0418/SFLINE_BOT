@@ -4,9 +4,9 @@ import itertools
 import logging
 import threading
 from collections import Counter, deque
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Iterable, Protocol
-
+from typing import Any, Protocol
 
 EventHandler = Callable[[Any], None]
 EventKeyFunction = Callable[[Any], str]
@@ -69,13 +69,11 @@ class ThreadPoolEventDispatcher:
                 for key, count in additions.items()
             ):
                 return False
-            acquired = 0
-            for _ in batch:
+            for acquired, _ in enumerate(batch):
                 if not self._slots.acquire(blocking=False):
                     for _ in range(acquired):
                         self._slots.release()
                     return False
-                acquired += 1
             new_keys: list[str] = []
             for event, key in keyed:
                 self._pending.setdefault(key, deque()).append((event, handler))
@@ -107,7 +105,7 @@ class ThreadPoolEventDispatcher:
     def _safe_key(self, event: Any) -> str:
         try:
             key = str(self._key_fn(event) or "").strip()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - an injected key function cannot break admission
             self._logger.warning("event=worker_key_failed error_type=%s", type(exc).__name__)
             key = ""
         return key or f"anonymous:{next(self._anonymous_ids)}"
@@ -123,7 +121,7 @@ class ThreadPoolEventDispatcher:
                 event, handler = queue.popleft()
             try:
                 handler(event)
-            except BaseException as exc:
+            except Exception as exc:  # noqa: BLE001 - isolate one failed event from the worker
                 self._logger.error("event=worker_failed error_type=%s", type(exc).__name__)
             finally:
                 with self._state_lock:

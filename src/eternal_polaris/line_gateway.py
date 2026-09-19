@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import Protocol
 
 from linebot.v3.messaging import (
     ApiClient,
@@ -18,7 +19,6 @@ from linebot.v3.messaging import (
 )
 
 from .knowledge_images import FEATURED_IMAGE_FILES
-
 
 HERO_FILES = {
     "cosmos": "vault-cosmos.jpg",
