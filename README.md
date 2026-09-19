@@ -49,7 +49,7 @@ OPENAI_API_KEY=你的_OpenAI_Key
 OPENAI_MODEL=gpt-5.6-luna
 ```
 
-兩條路徑都使用相同的 1236 張人工知識卡、相同 JSON 輸出契約與相同程式端驗證；OpenAI 路徑使用 Responses API structured output。
+兩條路徑都使用相同的 1234 張人工知識卡、相同 JSON 輸出契約與相同程式端驗證；OpenAI 路徑使用 Responses API structured output。
 
 ## 主要功能
 
@@ -66,7 +66,7 @@ OPENAI_MODEL=gpt-5.6-luna
 ### 💬 自由問答
 
 - 自由問答聚焦天文與科幻物理；地球、生命、量子、能源、AI 與太空工程由跨域試煉涵蓋。
-- 1236 張人工整理知識卡作為參考；自由問答不限於卡片主題，亦可運用模型既有知識。每張卡都必須具備來源名稱與 HTTPS 網址；科幻卡明確區分作品設定與現實科學。
+- 1234 張人工整理知識卡作為參考；自由問答不限於卡片主題，亦可運用模型既有知識。每張卡都必須具備來源名稱與 HTTPS 網址；科幻卡明確區分作品設定與現實科學。
 - 天象路線新增日月食、凌日、掩星、合與衝、逆行、高層大氣發光、太空天氣與深空瞬變，分類與觀測安全見 [太空天象圖鑑](docs/celestial-phenomena-atlas.md)。
 - 科幻科技路線以作品能力、現實近親、核心障礙與四級可行性比較光劍、相位槍、護盾、複製機、全像甲板、隱形、仿生人與反物質核心，詳見 [科幻科技可行性圖鑑](docs/sci-fi-technology-feasibility.md)。
 - 從遙感五十號02星碎片事件延伸到軌道鑑識、監測、避碰、鈍化、離軌與科學化科技樹，詳見 [軌道碎片與技術發展](docs/technology-development-and-orbital-debris.md)。
@@ -127,7 +127,7 @@ LINE Webhook
   ├─ Help / Quiz / Score / Quit 確定性路由
   ├─ QuizManager（簽章、TTL、進度、評分）
   └─ HybridAnswerService
-       ├─ 高信心 → 本機 1236 張知識卡
+       ├─ 高信心 → 本機 1234 張知識卡
        └─ 其他 → Google Gemma 4 26B A4B 或 OpenAI Luna
 ```
 
@@ -221,7 +221,7 @@ Invoke-RestMethod http://127.0.0.1:5000/health
 預期：
 
 ```json
-{"status":"ok","knowledge_cards":1236,"quiz_questions":300}
+{"status":"ok","knowledge_cards":1234,"quiz_questions":300}
 ```
 
 第二個 PowerShell：

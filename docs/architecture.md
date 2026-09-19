@@ -43,7 +43,7 @@ flowchart LR
     D -->|Help / Rules| P[和藹長輩人格]
     D -->|Challenge / Answer| Z[QuizManager]
     D -->|普通問題| H[HybridAnswerService]
-    H -->|高信心| K[1236 張本機知識卡]
+    H -->|高信心| K[1234 張本機知識卡]
     H -->|其他| S{AI_PROVIDER}
     S -->|google| G[Gemini API / Gemma 4 26B A4B]
     S -->|openai| O[OpenAI Responses / Luna]
@@ -113,7 +113,7 @@ HMAC 同時納入加鹽後 user key，因此符文不能跨人使用；session �
 | `persona.py` | 和藹長輩與守門人情境語氣 |
 | `quiz.py` | 題庫驗證、場次、HMAC、評分與 TTL |
 | `line_gateway.py` | LINE TextMessage、Quick Reply 與單次 Reply API |
-| `knowledge.py` | 1236 張知識卡、來源驗證與保守本機命中 |
+| `knowledge.py` | 1234 張知識卡、來源驗證與保守本機命中 |
 | `answer_service.py` | 本機優先、Google Gemma / OpenAI Luna 受限 fallback |
 | `config.py` | AI provider 選擇、金鑰與延遲預算 |
 | `memory.py` | 有界、短期、加鹽 hash 對話記憶與事件去重 |

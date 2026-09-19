@@ -105,7 +105,7 @@ def test_health_reports_valid_quiz_bank(settings, knowledge, quiz_bank):
     assert response.status_code == 200
     assert response.get_json() == {
         "status": "ok",
-        "knowledge_cards": 1236,
+        "knowledge_cards": 1234,
         "quiz_questions": 300,
     }
 

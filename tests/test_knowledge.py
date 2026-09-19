@@ -7,8 +7,8 @@ from eternal_polaris.models import BotAnswer, ScienceLabel
 
 
 def test_knowledge_has_expected_shape(knowledge):
-    assert len(knowledge.cards) == 1236
-    assert len(knowledge.by_id) == 1236
+    assert len(knowledge.cards) == 1234
+    assert len(knowledge.by_id) == 1234
 
 
 def test_all_science_fiction_cards_have_explicit_https_sources(knowledge):
@@ -538,9 +538,7 @@ def test_stellaris_civilization_lab_aliases_match(knowledge, question, expected)
 @pytest.mark.parametrize("question, expected", [
     ("最佳政體", "sw481"),
     ("星球直接民主", "sw482"),
-    ("代議民主", "sw483"),
     ("公民議會", "sw484"),
-    ("抽籤民主", "sw485"),
     ("技術官僚政府", "sw486"),
     ("知識菁英民主", "sw487"),
     ("演算法治理", "sw488"),

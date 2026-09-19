@@ -87,8 +87,8 @@ jobs:
           })
 
           cards = json.loads((root / 'data/knowledge_cards.json').read_text(encoding='utf-8'))
-          assert len(cards) == 1236
-          assert len({card['id'] for card in cards}) == 1236
+          assert len(cards) == 1234
+          assert len({card['id'] for card in cards}) == 1234
 
           formal_vaults = set(module.VAULTS) - {'all'}
           difficulties = set(module.DIFFICULTY_NAMES) - {'mixed'}

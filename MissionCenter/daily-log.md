@@ -40,3 +40,7 @@
   - Change: 執行完整本機發布驗證與受影響切片複驗。
   - Reason: 為直接推送 main 建立可重複證據。
   - Impact: `pip check`、compile、1155 項 pytest、81.99% branch coverage、300 題／24 主題 release certification、PPT v9 11 頁匯入驗證與 diff check 全部通過；未把 CI、手機 E2E 或 30 題線上模型評估宣稱為已完成。
+- Timestamp: 2026-09-19
+  - Change: 移除 `sw483` 代議民主與 `sw485` 抽籤選領導者，將正式知識庫收斂為 1234 張；重製 PPT v10 與逐頁講稿，機器人對話統一使用淺藍色。
+  - Reason: 兩張卡偏一般政治制度，與天文、工程、科幻科技主線的耦合最低；同時讓簡報反映 100 張圖片、NAS 部署與目前驗證邊界。
+  - Impact: 1153 項 pytest 通過，branch coverage 81.99%；PPT v10 11 頁、原生圖表、字型與版面驗證通過。未把程式測試宣稱為學習成效或模型準確率。

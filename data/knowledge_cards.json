@@ -5515,28 +5515,10 @@
     "source_url": "https://plato.stanford.edu/entries/democracy/"
   },
   {
-    "id": "sw483",
-    "canonical_question": "代議民主為什麼需要選代表，而不是大家自己決定？",
-    "aliases": ["代議民主", "representative democracy", "為什麼要選代表", "政治委託代理"],
-    "facts": ["代表制度讓少數人投入時間處理大量議題、協商和監督行政，適合規模大且政策持續的社會。", "代價是代表可能追求自身、政黨或資助者利益，因此需要公開資訊、定期選舉、利益揭露、反對權與可追究責任。"],
-    "label": "general",
-    "source_name": "Stanford Encyclopedia of Philosophy — Democracy",
-    "source_url": "https://plato.stanford.edu/entries/democracy/"
-  },
-  {
     "id": "sw484",
     "canonical_question": "公民議會和一般民調有什麼不同？",
     "aliases": ["公民議會", "citizens assembly", "公民議會不是民調", "審議民主"],
     "facts": ["民調多半擷取某時點的個別意見；公民議會讓具代表性的成員花時間接觸多元證據、互相審議並形成建議。", "OECD指出這類程序適合複雜、價值衝突與長期問題；品質仍取決於抽選、資訊平衡、獨立主持和政府是否正式回應。"],
-    "label": "general",
-    "source_name": "OECD — Innovative Citizen Participation",
-    "source_url": "https://www.oecd.org/en/publications/innovative-citizen-participation-and-new-democratic-institutions_339306da-en.html"
-  },
-  {
-    "id": "sw485",
-    "canonical_question": "用抽籤選領導者會比選舉公平嗎？",
-    "aliases": ["抽籤民主", "sortition", "隨機選公民", "抽籤選領導"],
-    "facts": ["隨機抽選能讓一般人有較平等的被選機會，降低職業政治與金錢競選的門檻；分層抽樣還可提高人口代表性。", "抽籤本身不保證能力、投入或問責，較常用於有訓練與審議時間的公民小組，並與選舉和專業行政互補。"],
     "label": "general",
     "source_name": "OECD — Innovative Citizen Participation",
     "source_url": "https://www.oecd.org/en/publications/innovative-citizen-participation-and-new-democratic-institutions_339306da-en.html"
