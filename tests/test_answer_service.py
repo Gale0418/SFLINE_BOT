@@ -260,6 +260,24 @@ def test_provider_prompt_masks_common_sensitive_values(knowledge):
     assert "[電話已遮罩]" in prompt
 
 
+def test_provider_prompt_masks_extended_identity_and_location_values(knowledge):
+    client = FakeGoogleClient({"label": "chat", "answer": "已遮罩。", "source_ids": []})
+    service = OpenAIAnswerService("test", "gemma-4-26b-a4b-it", knowledge, client=client)
+    service.answer(
+        "我叫王小明，身分證 A123456789，生日 2001/02/03，住在臺北市中正區忠孝東路一段1號",
+        (),
+    )
+    prompt = client.body["contents"][0]["parts"][0]["text"]
+    assert "王小明" not in prompt
+    assert "A123456789" not in prompt
+    assert "2001/02/03" not in prompt
+    assert "臺北市中正區忠孝東路一段1號" not in prompt
+    assert "[姓名已遮罩]" in prompt
+    assert "[身分證號已遮罩]" in prompt
+    assert "[日期已遮罩]" in prompt
+    assert "[地址已遮罩]" in prompt
+
+
 def test_chat_cannot_claim_science_sources(knowledge):
     with pytest.raises(KnowledgeError):
         knowledge.validate_answer(BotAnswer(ScienceLabel.CHAT, "閒聊", (knowledge.cards[0].id,)))

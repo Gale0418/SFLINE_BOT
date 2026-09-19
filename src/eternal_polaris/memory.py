@@ -118,18 +118,26 @@ class RequestRateLimiter:
         salt: str,
         per_user_per_minute: int = 12,
         global_per_minute: int = 120,
+        global_per_day: int = 2_000,
         max_users: int = 10_000,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        if per_user_per_minute < 1 or global_per_minute < per_user_per_minute or max_users < 1:
-            raise ValueError("速率限制必須為正數，且全域限制不得小於單一使用者限制")
+        if (
+            per_user_per_minute < 1
+            or global_per_minute < per_user_per_minute
+            or global_per_day < global_per_minute
+            or max_users < 1
+        ):
+            raise ValueError("速率限制必須為正數，且全域日限制不得小於分鐘限制")
         self._salt = salt
         self._per_user = per_user_per_minute
         self._global = global_per_minute
+        self._daily_limit = global_per_day
         self._max_users = max_users
         self._clock = clock
         self._users: dict[str, deque[float]] = {}
         self._all: deque[float] = deque()
+        self._daily: deque[float] = deque()
         self._lock = threading.Lock()
 
     def allow(self, user_id: str) -> bool:
@@ -139,6 +147,9 @@ class RequestRateLimiter:
         with self._lock:
             while self._all and self._all[0] <= cutoff:
                 self._all.popleft()
+            day_cutoff = now - 86_400.0
+            while self._daily and self._daily[0] <= day_cutoff:
+                self._daily.popleft()
             for stale_key, stale_bucket in tuple(self._users.items()):
                 while stale_bucket and stale_bucket[0] <= cutoff:
                     stale_bucket.popleft()
@@ -150,8 +161,13 @@ class RequestRateLimiter:
                     return False
                 bucket = deque()
                 self._users[key] = bucket
-            if len(bucket) >= self._per_user or len(self._all) >= self._global:
+            if (
+                len(bucket) >= self._per_user
+                or len(self._all) >= self._global
+                or len(self._daily) >= self._daily_limit
+            ):
                 return False
             bucket.append(now)
             self._all.append(now)
+            self._daily.append(now)
             return True

@@ -72,3 +72,20 @@ def test_request_rate_limiter_rejects_new_user_when_all_slots_are_active():
     assert limiter.allow("u1")
     now[0] += 61
     assert limiter.allow("u3")
+
+
+def test_request_rate_limiter_enforces_daily_provider_budget():
+    now = [100.0]
+    limiter = RequestRateLimiter(
+        salt="salt",
+        per_user_per_minute=3,
+        global_per_minute=3,
+        global_per_day=3,
+        clock=lambda: now[0],
+    )
+    assert limiter.allow("u1")
+    assert limiter.allow("u2")
+    assert limiter.allow("u3")
+    assert not limiter.allow("u4")
+    now[0] += 86_401
+    assert limiter.allow("u4")
