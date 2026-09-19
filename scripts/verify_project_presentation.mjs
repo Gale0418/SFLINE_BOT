@@ -7,9 +7,9 @@ if(!home)throw new Error('USERPROFILE or HOME is required to locate Codex presen
 // Set CODEX_WORKSPACE_DEPENDENCIES to override the Codex desktop runtime location.
 const runtime=path.resolve(process.env.CODEX_WORKSPACE_DEPENDENCIES||path.join(home,'.cache','codex-runtimes','codex-primary-runtime','dependencies'));
 const {FileBlob,PresentationFile}=await import(pathToFileURL(path.join(runtime,'node','node_modules','@oai','artifact-tool','dist','artifact_tool.mjs')));
-const dir=path.resolve('.presentation-build/visual-v10/final');
+const dir=path.resolve('.presentation-build/visual-v11/final');
 await fs.mkdir(dir,{recursive:true});
-const p=await PresentationFile.importPptx(await FileBlob.load(path.resolve('deliverables/永恆北極星_全視覺導引學習版_v10.pptx')));
+const p=await PresentationFile.importPptx(await FileBlob.load(path.resolve('deliverables/永恆北極星_全視覺導引學習版_v11.pptx')));
 for(let i=0;i<p.slides.items.length;i++){
  const blob=await p.export({slide:p.slides.items[i],format:'png',scale:1});
  await fs.writeFile(path.join(dir,`slide-${i+1}.png`),new Uint8Array(await blob.arrayBuffer()));

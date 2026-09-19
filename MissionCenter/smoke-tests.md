@@ -152,12 +152,12 @@
 - Linked task ID: LB-001, LB-003, LB-E3, LB-E5, LB-E6
 - Run type: automated + local certification + external review
 
-## ST-015｜1234 卡策展收斂與 PPT v10 驗證
+## ST-015｜1234 卡策展收斂與 PPT v11 驗證
 
-- What was tested: 移除兩張偏一般政治制度卡片後的 1234 張知識卡契約、300 題／24 主題、PPT v10、逐頁演講稿與淺藍色機器人對話規則。
+- What was tested: 移除兩張偏一般政治制度卡片後的 1234 張知識卡契約、300 題／24 主題、PPT v11、逐頁演講稿、淺藍色機器人對話規則與 NAS 架構節點。
 - How it was tested: `pip check`、`compileall`、`pytest --cov=eternal_polaris --cov-branch`、簡報 finalizer、Artifact Tool 重新匯入與全頁縮圖檢查；另執行 `git diff --check`。
-- Expected result: `sw483`／`sw485` 不再載入；1234 卡與健康檢查契約一致；PPT v10 可匯入 11 頁，原生圖表、字型與版面驗證通過；講稿不混淆程式測試、學習成效與模型效能。
-- Observed result: 1153 passed，branch coverage 81.99%；PPT v10 finalizer finding 0、slides=11、totalSpeechCharacters=7370，原生長條圖位於 P6；視覺檢查確認 P8 守門人對話為淺藍色、使用者訊息為淡綠色。
+- Expected result: `sw483`／`sw485` 不再載入；1234 卡與健康檢查契約一致；PPT v11 可匯入 11 頁，原生圖表、字型與版面驗證通過；架構圖明列 Synology NAS／Docker；講稿不混淆程式測試、學習成效與模型效能。
+- Observed result: 1153 passed，branch coverage 81.99%；PPT v11 finalizer finding 0、slides=11、totalSpeechCharacters=7370，原生長條圖位於 P6；視覺檢查確認 P5 有 NAS／Docker 節點，P8 守門人對話為淺藍色、使用者訊息為淡綠色。
 - Result: Pass（本機資料契約與簡報驗證）；手機實機 E2E 與有效 30 題線上模型評估仍需分開取得證據。
 - Date: 2026-09-19
 - Linked task ID: LB-001, LB-003, LB-E3, LB-E6
