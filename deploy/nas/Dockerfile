@@ -12,6 +12,7 @@ RUN python -m pip install --require-hashes -r requirements.lock
 
 COPY src ./src
 COPY scripts/backup_sqlite.py ./scripts/backup_sqlite.py
+COPY scripts/requeue_webhook.py ./scripts/requeue_webhook.py
 COPY data/knowledge_cards.json data/quiz_questions.tsv ./data/
 COPY assets/knowledge ./assets/knowledge
 

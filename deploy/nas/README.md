@@ -22,7 +22,16 @@ test -w /volume1/docker/eternal-polaris/data/private
 
 `ngrok` 服務只會讀取獨立的 `ngrok.env`；LINE 與 AI 金鑰只注入 `bot` 容器。部署前執行 `cp ngrok.env.example ngrok.env`，只填入 ngrok token，再將檔案設為 `600`。部署後可用 `docker compose exec bot test -w /app/data/private` 做寫入權限 preflight。
 
-若 `/ready` 因 `ProcessInterruptedUnknown` 回 503，代表上次程序在事件處理中斷；系統不會冒險重送一次性 LINE 回覆。管理者可在一小時內於 `webhooks.sqlite3` 檢查 `state='interrupted'` 的隔離事件，完成判斷後刪除該列；一小時後 payload 會自動清除，事件 ID 最長保留七天。
+若 `/ready` 因 `ProcessInterruptedUnknown` 回 503，代表上次程序在事件處理中斷；系統不會冒險重送一次性 LINE 回覆。管理者可在一小時內於 `webhooks.sqlite3` 檢查 `state='interrupted'` 的隔離事件。若能確認尚未送出回覆，且理解 reply token 可能已失效或造成重複訊息，可用下列命令只重排一次；兩個 event ID 必須相同，且必須明示接受風險：
+
+```sh
+docker compose -f deploy/nas/compose.yaml exec -T bot python /app/scripts/requeue_webhook.py \
+  --db /app/data/private/webhooks.sqlite3 \
+  --event-id EVENT_ID --confirm-event-id EVENT_ID \
+  --accept-duplicate-reply-risk
+```
+
+若不重排，請在完成判斷後刪除該列。一小時後 payload 會自動清除，事件 ID 最長保留七天。此流程是外部 Reply API 無冪等鍵時的人工風險決策，不宣稱 exactly-once。
 
 ## 備份與還原演練
 

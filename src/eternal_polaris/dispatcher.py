@@ -27,6 +27,35 @@ class RetryablePreReplyError(RuntimeError):
     """A proven pre-reply failure that is safe to execute again."""
 
 
+def requeue_interrupted(path: str | Path, event_id: str) -> None:
+    """Explicitly requeue one quarantined event after an operator risk decision."""
+    now = time.time()
+    with closing(sqlite3.connect(Path(path), timeout=10, isolation_level=None)) as db:
+        db.execute("PRAGMA busy_timeout=10000")
+        db.execute("BEGIN IMMEDIATE")
+        row = db.execute(
+            "SELECT state,payload FROM webhook_jobs_v1 WHERE event_id=?",
+            (event_id,),
+        ).fetchone()
+        if row is None:
+            db.rollback()
+            raise ValueError("event ID does not exist")
+        state, payload = row
+        if state != "interrupted" or not payload:
+            db.rollback()
+            raise ValueError("event is not replayable interrupted work")
+        changed = db.execute(
+            "UPDATE webhook_jobs_v1 "
+            "SET state='pending',updated_at=?,error_type='OperatorRequeue' "
+            "WHERE event_id=? AND state='interrupted'",
+            (now, event_id),
+        ).rowcount
+        if changed != 1:
+            db.rollback()
+            raise RuntimeError("event state changed while requeueing")
+        db.commit()
+
+
 class EventDispatcher(Protocol):
     def submit_many(self, events: Iterable[Any], handler: EventHandler) -> bool: ...
     def shutdown(self, *, wait: bool = True) -> None: ...

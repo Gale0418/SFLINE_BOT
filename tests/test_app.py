@@ -5,6 +5,8 @@ import hashlib
 import hmac
 import json
 import random
+import sqlite3
+import time
 
 import pytest
 
@@ -16,7 +18,7 @@ from eternal_polaris.app import (
     UNSUPPORTED_REPLY,
     create_app,
 )
-from eternal_polaris.dispatcher import InlineEventDispatcher
+from eternal_polaris.dispatcher import DurableEventDispatcher, InlineEventDispatcher
 from eternal_polaris.memory import RequestRateLimiter
 from eternal_polaris.models import BotAnswer, ScienceLabel
 from eternal_polaris.quiz import QuizManager
@@ -348,6 +350,47 @@ def test_rate_limit_stops_model_and_returns_recovery_options(settings, knowledge
     assert gateway.replies[-1][1] == RATE_LIMIT_REPLY
     assert gateway.replies[-1][2]
     assert provider.calls == 0
+
+
+def test_durable_app_retries_sqlite_failure_before_reply(
+    settings, knowledge, quiz_bank, tmp_path
+):
+    class FlakyLearning:
+        def __init__(self):
+            self.calls = 0
+
+        def handle(self, user_id, text, *, postback=False):
+            del user_id, text, postback
+            self.calls += 1
+            if self.calls == 1:
+                raise sqlite3.OperationalError("temporarily locked")
+            return "資料庫恢復後已繼續。", ()
+
+        def pause(self, user_id):
+            del user_id
+
+        def ready(self):
+            return True
+
+    learning = FlakyLearning()
+    gateway = FakeReplyGateway()
+    dispatcher = DurableEventDispatcher(tmp_path / "retry-app.sqlite3", max_workers=1)
+    app = create_app(
+        settings,
+        answer_provider=FakeAnswerProvider(),
+        reply_gateway=gateway,
+        knowledge=knowledge,
+        quiz_bank=quiz_bank,
+        dispatcher=dispatcher,
+        learning_manager=learning,
+    )
+    assert _post(app, _body(text="學習", event_id="sqlite-retry"), settings).status_code == 200
+    deadline = time.time() + 3
+    while not gateway.replies and time.time() < deadline:
+        time.sleep(0.02)
+    dispatcher.shutdown(wait=True)
+    assert learning.calls == 2
+    assert gateway.replies[-1][1] == "資料庫恢復後已繼續。"
 
 
 def test_home_command_exits_quiz_and_returns_menu(settings, knowledge, quiz_bank):

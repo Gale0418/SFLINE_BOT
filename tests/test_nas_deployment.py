@@ -18,3 +18,4 @@ def test_nas_compose_uses_repository_env_and_image_healthcheck():
     assert '"127.0.0.1:5050:5000"' in compose
     assert "python:3.11-slim@sha256:" in dockerfile
     assert "python -m pip install --require-hashes -r requirements.lock" in dockerfile
+    assert "scripts/requeue_webhook.py" in dockerfile

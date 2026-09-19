@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
+import sqlite3
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -28,11 +29,16 @@ from .answer_service import (
 )
 from .commands import Command, normalize_command, route_command
 from .config import Settings
-from .dispatcher import DurableEventDispatcher, EventDispatcher
+from .dispatcher import DurableEventDispatcher, EventDispatcher, RetryablePreReplyError
 from .knowledge import KnowledgeBase
 from .knowledge_images import FEATURED_IMAGE_FILES, image_filename_for_sources
 from .learning import ROUTE_COMMANDS, LearningManager
-from .line_gateway import LineReplyGateway, QuickReplyOption, ReplyGateway
+from .line_gateway import (
+    AmbiguousReplyError,
+    LineReplyGateway,
+    QuickReplyOption,
+    ReplyGateway,
+)
 from .memory import ConversationMemory, EventDeduplicator, RequestRateLimiter
 from .quiz import (
     DIFFICULTY_NAMES,
@@ -62,6 +68,28 @@ CHILD_QUESTIONS = (
     "極光是天空在變魔術嗎？",
     "太空爆炸真的會轟一聲嗎？",
 )
+
+
+class _ReplyAttemptTracker:
+    def __init__(self, gateway: ReplyGateway) -> None:
+        self._gateway = gateway
+        self.attempted = False
+
+    def reply_text(
+        self,
+        reply_token: str,
+        text: str,
+        quick_replies: Sequence[QuickReplyOption] = (),
+        *,
+        hero_filename: str = "",
+    ) -> None:
+        self.attempted = True
+        self._gateway.reply_text(
+            reply_token,
+            text,
+            quick_replies,
+            hero_filename=hero_filename,
+        )
 
 
 def create_app(
@@ -238,6 +266,8 @@ def _handle_event(
     learning_manager: LearningManager | None = None,
     rate_limiter: RequestRateLimiter | None = None,
 ) -> None:
+    reply_tracker = _ReplyAttemptTracker(reply_gateway)
+    reply_gateway = reply_tracker
     event_id = str(getattr(event, "webhook_event_id", "") or "")
     if not deduplicator.first_seen(event_id):
         logger.info("event=webhook_ignored reason=duplicate")
@@ -302,6 +332,10 @@ def _handle_event(
     except Exception as exc:
         deduplicator.forget(event_id)
         logger.error("event=processing_failed error_type=%s", type(exc).__name__)
+        if isinstance(exc, AmbiguousReplyError):
+            raise
+        if not reply_tracker.attempted and isinstance(exc, sqlite3.OperationalError):
+            raise RetryablePreReplyError("SQLite failed before any reply attempt") from exc
         raise
 
 

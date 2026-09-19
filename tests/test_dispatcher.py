@@ -4,12 +4,14 @@ import sqlite3
 import threading
 import time
 
+import pytest
 from linebot.v3.webhooks import Event
 
 from eternal_polaris.dispatcher import (
     DurableEventDispatcher,
     RetryablePreReplyError,
     ThreadPoolEventDispatcher,
+    requeue_interrupted,
 )
 from eternal_polaris.line_gateway import AmbiguousReplyError
 
@@ -161,9 +163,6 @@ def test_restart_quarantines_unknown_processing_job_without_replaying(tmp_path):
     restarted = DurableEventDispatcher(path, max_workers=1)
     restarted.start(lambda event: calls.append(event.webhook_event_id))
     time.sleep(0.2)
-    assert not restarted.ready()
-    restarted.shutdown(wait=True)
-
     with sqlite3.connect(path) as db:
         state, stored_payload, error_type = db.execute(
             "SELECT state,payload,error_type FROM webhook_jobs_v1 WHERE event_id=?",
@@ -175,6 +174,20 @@ def test_restart_quarantines_unknown_processing_job_without_replaying(tmp_path):
         payload,
         "ProcessInterruptedUnknown",
     )
+    assert not restarted.ready()
+
+    requeue_interrupted(path, "evt-interrupted")
+    deadline = time.time() + 2
+    while not calls and time.time() < deadline:
+        time.sleep(0.02)
+    assert calls == ["evt-interrupted"]
+    deadline = time.time() + 2
+    while not restarted.ready() and time.time() < deadline:
+        time.sleep(0.02)
+    assert restarted.ready()
+    with pytest.raises(ValueError, match="not replayable"):
+        requeue_interrupted(path, "evt-interrupted")
+    restarted.shutdown(wait=True)
 
 
 def test_unknown_handler_failure_is_never_replayed(tmp_path):
