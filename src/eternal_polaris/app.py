@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import secrets
 import sqlite3
 import time
@@ -56,6 +57,10 @@ QUESTION_TOO_LONG_REPLY = "這段訊息太長了。請把問題縮短到 1000 �
 EMPTY_MESSAGE_REPLY = "我似乎只聽見了一陣安靜。寫下一個天文問題，或說『挑戰』敲響寶庫吧。"
 BUSY_REPLY = "Busy"
 RATE_LIMIT_REPLY = "星路上的訊號一時太擁擠了。請等一分鐘再問；你的學習進度與試煉不受影響。"
+STICKER_FALLBACK_REPLY = "我收到你的貼圖了。電腦版只悄悄告訴我它的代號，沒有把畫面送來；你也可以用一句話告訴我現在的心情。"
+_SAD_EMOTICONS = frozenset({"quq", "qwq", "qaq", "tat", "t_t", ";_;", "ಥ_ಥ", "╥﹏╥", "😭", "😢", "🥺"})
+_HAPPY_EMOTICONS = frozenset({"owo", "owo/", "ouo", "uwu", ">w<", "^w^", "xd", "😂", "🤣", "😊", "✨"})
+_STICKER_TEXT_FALLBACK = re.compile(r"^\[(?:folded)\]$", re.IGNORECASE)
 CHILD_QUESTIONS = (
     "天空為什麼是藍色的？",
     "彩虹可以走上去嗎？",
@@ -353,6 +358,12 @@ def _handle_text(
     learning_manager: LearningManager | None = None,
     rate_limiter: RequestRateLimiter | None = None,
 ) -> None:
+    casual_reply = _casual_symbol_reply(text)
+    if casual_reply is not None:
+        _reply(reply_gateway, reply_token, casual_reply, _home_options())
+        memory.add(user_id, text, casual_reply)
+        logger.info("event=reply_sent category=casual_symbol")
+        return
     if learning_manager:
         normalized = normalize_command(text)
         switching = normalized in {"學習", "開始學習", "繼續學習"} or normalized in ROUTE_COMMANDS
@@ -471,6 +482,17 @@ def _handle_text(
         )
     else:
         logger.info("event=reply_sent category=service_error")
+
+
+def _casual_symbol_reply(text: str) -> str | None:
+    normalized = text.strip().casefold()
+    if _STICKER_TEXT_FALLBACK.fullmatch(normalized):
+        return STICKER_FALLBACK_REPLY
+    if normalized in _SAD_EMOTICONS:
+        return "唉呀，看來心情縮成一小團了。先別急著逞強；你願意的話，就慢慢告訴我發生了什麼。"
+    if normalized in _HAPPY_EMOTICONS:
+        return "呵呵，看來今天的星光很有精神。帶著這份好奇心吧；你想先探索哪一件事？"
+    return None
 
 
 def _handle_postback(

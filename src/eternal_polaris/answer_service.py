@@ -21,16 +21,42 @@ _SENSITIVE_PATTERNS = (
     (re.compile(r"(?i)\b(?:sk-|AIza)[A-Za-z0-9_-]{16,}\b"), "[金鑰已遮罩]"),
     (re.compile(r"(?i)\b(?:bearer|api[_ -]?key|token)\s*[:=]\s*\S+"), "[憑證已遮罩]"),
     (re.compile(r"(?i)(?<![A-Z0-9])[A-Z][12]\d{8}(?!\d)"), "[身分證號已遮罩]"),
-    (re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)"), "[付款卡號已遮罩]"),
-    (re.compile(r"(?:19|20)\d{2}[-/.年](?:0?[1-9]|1[0-2])[-/.月](?:0?[1-9]|[12]\d|3[01])日?"), "[日期已遮罩]"),
     (re.compile(r"(?:我叫|姓名(?:是|[:：]))\s*[\u3400-\u9fff]{2,10}"), "姓名是[姓名已遮罩]"),
-    (re.compile(r"[\u3400-\u9fff]{2,6}(?:縣|市)[\u3400-\u9fff0-9之弄巷路街段號樓-]{3,40}"), "[地址已遮罩]"),
+)
+_CONTEXTUAL_SENSITIVE_PATTERNS = (
+    (
+        re.compile(
+            r"(?i)(生日|出生(?:日期|年月日)?|date of birth|dob)\s*[:：是為]?\s*"
+            r"(?:19|20)\d{2}[-/.年](?:1[0-2]|0?[1-9])[-/.月]"
+            r"(?:3[01]|[12]\d|0?[1-9])日?"
+        ),
+        r"\1[日期已遮罩]",
+    ),
+    (
+        re.compile(
+            r"(?i)(信用卡(?:卡號)?|金融卡(?:卡號)?|簽帳卡(?:卡號)?|卡號|"
+            r"card(?: number)?|payment card)\s*[:：是為]?\s*(?:\d[ -]?){13,19}"
+        ),
+        r"\1[付款卡號已遮罩]",
+    ),
+    (
+        re.compile(
+            r"(?:住在|地址(?:是|[:：])?\s*)?"
+            r"[\u3400-\u9fff]{2,6}(?:縣|市)"
+            r"(?:[\u3400-\u9fff]{1,10}(?:區|鄉|鎮|市))?"
+            r"[\u3400-\u9fff0-9]{1,20}(?:路|街|大道)"
+            r"[\u3400-\u9fff0-9之弄巷段-]{0,20}\d+(?:之\d+)?號(?:\d+樓)?"
+        ),
+        "[地址已遮罩]",
+    ),
 )
 
 
 def _redact_sensitive(text: str) -> str:
     redacted = text[:1000]
     for pattern, replacement in _SENSITIVE_PATTERNS:
+        redacted = pattern.sub(replacement, redacted)
+    for pattern, replacement in _CONTEXTUAL_SENSITIVE_PATTERNS:
         redacted = pattern.sub(replacement, redacted)
     return redacted
 

@@ -12,6 +12,7 @@ from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -21,6 +22,13 @@ from .line_gateway import AmbiguousReplyError
 
 EventHandler = Callable[[Any], None]
 EventKeyFunction = Callable[[Any], str]
+
+
+class _SubmissionResult(Enum):
+    ACCEPTED = "accepted"
+    PER_KEY_LIMIT = "per_key_limit"
+    CAPACITY_LIMIT = "capacity_limit"
+    CLOSED = "closed"
 
 
 class RetryablePreReplyError(RuntimeError):
@@ -100,24 +108,29 @@ class ThreadPoolEventDispatcher:
         self._logger = logger or logging.getLogger(__name__)
 
     def submit_many(self, events: Iterable[Any], handler: EventHandler) -> bool:
+        return self.try_submit_many(events, handler) is _SubmissionResult.ACCEPTED
+
+    def try_submit_many(
+        self, events: Iterable[Any], handler: EventHandler
+    ) -> _SubmissionResult:
         batch = tuple(events)
         if not batch:
-            return True
+            return _SubmissionResult.ACCEPTED
         with self._state_lock:
             if self._closed:
-                return False
+                return _SubmissionResult.CLOSED
             keyed = tuple((event, self._safe_key(event)) for event in batch)
             additions = Counter(key for _, key in keyed)
             if any(
                 self._outstanding.get(key, 0) + count > self._max_outstanding_per_key
                 for key, count in additions.items()
             ):
-                return False
+                return _SubmissionResult.PER_KEY_LIMIT
             for acquired, _ in enumerate(batch):
                 if not self._slots.acquire(blocking=False):
                     for _ in range(acquired):
                         self._slots.release()
-                    return False
+                    return _SubmissionResult.CAPACITY_LIMIT
             new_keys: list[str] = []
             for event, key in keyed:
                 self._pending.setdefault(key, deque()).append((event, handler))
@@ -143,8 +156,12 @@ class ThreadPoolEventDispatcher:
                         self._outstanding.pop(key, None)
                 for _ in batch:
                     self._slots.release()
-                return False
-        return True
+                return _SubmissionResult.CLOSED
+        return _SubmissionResult.ACCEPTED
+
+    def event_key(self, event: Any) -> str:
+        """Return the same conversation key used by admission control."""
+        return self._safe_key(event)
 
     def _safe_key(self, event: Any) -> str:
         try:
@@ -365,13 +382,19 @@ class DurableEventDispatcher:
         with closing(self._connect()) as db:
             rows = db.execute(
                 "SELECT event_id,payload FROM webhook_jobs_v1 "
-                "WHERE state='pending' ORDER BY created_at LIMIT 128"
+                "WHERE state='pending' ORDER BY created_at LIMIT ?",
+                (self._max_persisted_jobs,),
             ).fetchall()
+        saturated_keys: set[str] = set()
         for event_id, payload in rows:
             try:
                 event = Event.from_json(payload)
             except Exception as exc:  # noqa: BLE001 - corrupt durable payload must be quarantined
                 self._set_failed(event_id, type(exc).__name__)
+                continue
+            job = _DurableJob(event_id, event)
+            event_key = self._inner.event_key(job)
+            if event_key in saturated_keys:
                 continue
             with closing(self._connect()) as db:
                 changed = db.execute(
@@ -381,13 +404,16 @@ class DurableEventDispatcher:
                 ).rowcount
             if not changed:
                 continue
-            job = _DurableJob(event_id, event)
-            if not self._inner.submit_many((job,), self._run_job):
+            submission = self._inner.try_submit_many((job,), self._run_job)
+            if submission is not _SubmissionResult.ACCEPTED:
                 with closing(self._connect()) as db:
                     db.execute(
                         "UPDATE webhook_jobs_v1 SET state='pending',updated_at=? WHERE event_id=?",
                         (time.time(), event_id),
                     )
+                if submission is _SubmissionResult.PER_KEY_LIMIT:
+                    saturated_keys.add(event_key)
+                    continue
                 break
 
     def _run_job(self, job: _DurableJob) -> None:
@@ -400,6 +426,16 @@ class DurableEventDispatcher:
             if row is None:
                 return
             attempts, created_at = int(row[0]) + 1, float(row[1])
+            if now - created_at >= self._retry_budget_seconds:
+                db.execute(
+                    "UPDATE webhook_jobs_v1 SET state='failed',payload=NULL,updated_at=?,"
+                    "error_type='ReplyTokenExpiredBeforeProcessing' WHERE event_id=?",
+                    (now, job.event_id),
+                )
+                self._logger.warning(
+                    "event=durable_job_expired age_seconds=%d", int(now - created_at)
+                )
+                return
             db.execute(
                 "UPDATE webhook_jobs_v1 SET state='processing',attempts=?,updated_at=? WHERE event_id=?",
                 (attempts, now, job.event_id),

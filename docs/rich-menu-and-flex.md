@@ -52,6 +52,8 @@ python -m eternal_polaris.rich_menu --apply
 
 套用流程依序執行官方驗證、建立、上傳圖片與設為預設選單；若建立後上傳失敗，會刪除本次產生的孤立選單。Rich Menu 不會出現在 LINE 電腦版；手機重新開啟聊天室後才會看到更新。
 
+LINE 電腦版也可能不顯示 Quick Reply，或把貼圖退化成 `[folded]` 一類的文字代號；這是用戶端能力差異，不代表 Webhook 壞掉。Bot 會在本機辨識常見顏文字與這類貼圖代號，直接以守門人口吻回覆；所有核心功能仍可輸入「首頁」、「學習」、「挑戰」或「幫助」使用。正式展示以手機版為準。
+
 參考：
 
 - LINE Developers — [Use rich menus](https://developers.line.biz/en/docs/messaging-api/using-rich-menus/)

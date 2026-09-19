@@ -264,7 +264,7 @@ def test_provider_prompt_masks_extended_identity_and_location_values(knowledge):
     client = FakeGoogleClient({"label": "chat", "answer": "已遮罩。", "source_ids": []})
     service = OpenAIAnswerService("test", "gemma-4-26b-a4b-it", knowledge, client=client)
     service.answer(
-        "我叫王小明，身分證 A123456789，生日 2001/02/03，住在臺北市中正區忠孝東路一段1號",
+        "我叫王小明，身分證 A123456789，生日 2001/02/03，住在臺北市中正區忠孝東路一段1號，信用卡卡號 4111 1111 1111 1111",
         (),
     )
     prompt = client.body["contents"][0]["parts"][0]["text"]
@@ -272,10 +272,31 @@ def test_provider_prompt_masks_extended_identity_and_location_values(knowledge):
     assert "A123456789" not in prompt
     assert "2001/02/03" not in prompt
     assert "臺北市中正區忠孝東路一段1號" not in prompt
+    assert "4111 1111 1111 1111" not in prompt
     assert "[姓名已遮罩]" in prompt
     assert "[身分證號已遮罩]" in prompt
     assert "[日期已遮罩]" in prompt
     assert "[地址已遮罩]" in prompt
+    assert "[付款卡號已遮罩]" in prompt
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "臺北市立天文科學教育館在哪裡？",
+        "臺北市看流星雨可以去哪裡？",
+        "1969年7月20日發生了什麼太空事件？",
+        "一光年約9460730472580800公尺，這是怎麼算的？",
+    ],
+)
+def test_provider_prompt_preserves_public_places_historical_dates_and_science_numbers(
+    knowledge, question
+):
+    client = FakeGoogleClient({"label": "chat", "answer": "正常。", "source_ids": []})
+    service = OpenAIAnswerService("test", "gemma-4-26b-a4b-it", knowledge, client=client)
+    service.answer(question, ())
+    prompt = client.body["contents"][0]["parts"][0]["text"]
+    assert question in prompt
 
 
 def test_chat_cannot_claim_science_sources(knowledge):

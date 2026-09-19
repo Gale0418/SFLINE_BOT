@@ -16,12 +16,12 @@ from eternal_polaris.dispatcher import (
 from eternal_polaris.line_gateway import AmbiguousReplyError
 
 
-def _line_event(event_id: str):
+def _line_event(event_id: str, *, user_id: str = "U-test"):
     return Event.from_dict({
         "type": "message",
         "mode": "active",
         "timestamp": 1,
-        "source": {"type": "user", "userId": "U-test"},
+        "source": {"type": "user", "userId": user_id},
         "webhookEventId": event_id,
         "deliveryContext": {"isRedelivery": False},
         "replyToken": f"reply-{event_id}",
@@ -207,3 +207,73 @@ def test_unknown_handler_failure_is_never_replayed(tmp_path):
     time.sleep(0.4)
     dispatcher.shutdown(wait=True)
     assert calls == 1
+
+
+def test_durable_dispatcher_skips_saturated_user_and_serves_another(tmp_path):
+    first_started = threading.Event()
+    release_first = threading.Event()
+    other_user_done = threading.Event()
+    calls: list[str] = []
+
+    def handler(event):
+        calls.append(event.webhook_event_id)
+        if event.webhook_event_id == "evt-a1":
+            first_started.set()
+            assert release_first.wait(2)
+        if event.webhook_event_id == "evt-b1":
+            other_user_done.set()
+
+    dispatcher = DurableEventDispatcher(
+        tmp_path / "fair.sqlite3",
+        max_workers=2,
+        queue_capacity=2,
+        max_pending_per_key=0,
+        key_fn=lambda event: event.source.user_id,
+    )
+    dispatcher.start(handler)
+    assert dispatcher.submit_many(
+        (
+            _line_event("evt-a1", user_id="U-A"),
+            _line_event("evt-a2", user_id="U-A"),
+            _line_event("evt-b1", user_id="U-B"),
+        ),
+        handler,
+    )
+    assert first_started.wait(1)
+    assert other_user_done.wait(1)
+    release_first.set()
+    deadline = time.time() + 2
+    while "evt-a2" not in calls and time.time() < deadline:
+        time.sleep(0.02)
+    dispatcher.shutdown(wait=True)
+    assert calls.index("evt-b1") < calls.index("evt-a2")
+
+
+def test_durable_dispatcher_discards_expired_event_before_handler(tmp_path):
+    path = tmp_path / "expired.sqlite3"
+    dispatcher = DurableEventDispatcher(path, max_workers=1, retry_budget_seconds=45)
+    payload = _line_event("evt-expired").to_json()
+    old = time.time() - 600
+    with sqlite3.connect(path) as db:
+        db.execute(
+            "INSERT INTO webhook_jobs_v1 "
+            "(event_id,payload,state,attempts,created_at,updated_at) "
+            "VALUES (?,?, 'pending',0,?,?)",
+            ("evt-expired", payload, old, old),
+        )
+    calls: list[str] = []
+    dispatcher.start(lambda event: calls.append(event.webhook_event_id))
+    deadline = time.time() + 2
+    state = error_type = None
+    while time.time() < deadline:
+        with sqlite3.connect(path) as db:
+            state, error_type = db.execute(
+                "SELECT state,error_type FROM webhook_jobs_v1 WHERE event_id=?",
+                ("evt-expired",),
+            ).fetchone()
+        if state == "failed":
+            break
+        time.sleep(0.02)
+    dispatcher.shutdown(wait=True)
+    assert calls == []
+    assert (state, error_type) == ("failed", "ReplyTokenExpiredBeforeProcessing")

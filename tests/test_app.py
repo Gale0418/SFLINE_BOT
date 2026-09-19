@@ -15,6 +15,7 @@ from eternal_polaris.answer_service import SERVICE_ERROR_REPLY
 from eternal_polaris.app import (
     QUESTION_TOO_LONG_REPLY,
     RATE_LIMIT_REPLY,
+    STICKER_FALLBACK_REPLY,
     UNSUPPORTED_REPLY,
     create_app,
 )
@@ -321,6 +322,25 @@ def test_non_text_event_gets_fixed_reply(settings, knowledge, quiz_bank):
     _post(app, _body(message_type="image"), settings)
     assert gateway.replies[0][1] == UNSUPPORTED_REPLY
     assert any(option.message_text == "首頁" or option.message_text == "幫助" for option in gateway.replies[0][2])
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("quq", "心情縮成一小團"),
+        ("OWO/", "星光很有精神"),
+        ("[folded]", STICKER_FALLBACK_REPLY),
+    ],
+)
+def test_emoticons_and_desktop_sticker_fallback_reply_locally(
+    settings, knowledge, quiz_bank, text, expected
+):
+    provider = FakeAnswerProvider(error=AssertionError("casual symbols must not call the model"))
+    gateway = FakeReplyGateway()
+    app = _make_app(settings, knowledge, quiz_bank, provider=provider, gateway=gateway)
+    _post(app, _body(text=text), settings)
+    assert expected in gateway.replies[0][1]
+    assert provider.calls == 0
 
 
 def test_group_rejection_has_no_unusable_recovery_buttons(settings, knowledge, quiz_bank):
