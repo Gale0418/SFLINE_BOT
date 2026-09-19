@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "1.0",
+  "taskId": "LB-006",
+  "snapshotId": "fa739d256f1fd1738d95835852b66918b4e11b71",
+  "createdAt": "2026-09-20T02:02:41+08:00",
+  "route": {
+    "kind": "full",
+    "rounds": 2,
+    "seatLimit": 4,
+    "agentTurnLimit": 8,
+    "note": "首輪與單次差異複審已耗用完整核准預算；最終 P1 修復以聚焦測試與完整本機發布檢查驗收。"
+  },
+  "artifacts": [
+    {"path": "src/eternal_polaris/app.py", "sha256": "4e5c3eafd85ecdef38b3451f78a7c60834ac4c22f98a6d53db04a680056276f7"},
+    {"path": "src/eternal_polaris/dispatcher.py", "sha256": "6c101a0d823888944c55cad415a9e2e8f8967060b34ee41256040a48d5c12ec5"},
+    {"path": "src/eternal_polaris/answer_service.py", "sha256": "aac199ffd50d8006ae640e4cc86b4f4623fe68db7a567a6f5b34080d163020f2"},
+    {"path": "src/eternal_polaris/memory.py", "sha256": "bf6c7d49f49ab096d27da954295d4e05bbc2785e706c2535ff28c7bfdf7f103a"},
+    {"path": "src/eternal_polaris/knowledge.py", "sha256": "1336c7ba4e44e8b1fb5f858e3f175f61f7d39ed12a7780b744a39db3ab7874db"},
+    {"path": "src/eternal_polaris/learning.py", "sha256": "8ef52f500b259e8211db72b1d1c04361f8a5b43b3852a74ba4d7d9ecc0a4c442"},
+    {"path": "deploy/nas/compose.yaml", "sha256": "38a9d74a4f632372b705bdee0be7c12781b0b9370509e5b1f8adc2c1beb58a6a"},
+    {"path": "deploy/nas/Dockerfile", "sha256": "d30a8bf2aa6cd8372668540cc6afab061842e38ef900875f9eac517f07479850"},
+    {"path": "scripts/requeue_webhook.py", "sha256": "97022e648a94ef931817ce2c99fe56f04bfd568c3fc9f2db074ffc3eebcb4a1a"}
+  ],
+  "seats": [
+    "security-reliability",
+    "performance-architecture",
+    "line-player-learning-experience",
+    "evidence-arbiter"
+  ],
+  "summary": {"p0Open": 0, "p1Open": 0, "validFindingsDisposed": true},
+  "findings": [
+    {"id": "SEC-001", "severity": "P1", "status": "fixed", "disposition": "持久化收件匣；僅明確回覆前 SQLite 暫時錯誤重試；不確定回覆不重送；中斷事件採顯式單次操作重排。"},
+    {"id": "SEC-002", "severity": "P2", "status": "fixed", "disposition": "事件 ID 保留七天並限制容量。"},
+    {"id": "SEC-003", "severity": "P1", "status": "fixed", "disposition": "舊導引資料先回填時間再清理，並在啟動時執行保留策略。"},
+    {"id": "SEC-004", "severity": "P1", "status": "fixed", "disposition": "ngrok 僅讀取獨立秘密檔，不再取得整份應用程式環境。"},
+    {"id": "SEC-005", "severity": "P1", "status": "fixed", "disposition": "加入每使用者、全域分鐘及全域每日模型請求上限。"},
+    {"id": "SEC-006", "severity": "P2", "status": "fixed", "disposition": "科學回答只渲染引用卡片已審核事實，混合比較逐來源標示。"},
+    {"id": "SEC-007", "severity": "P2", "status": "fixed", "disposition": "供應商輸出經嚴格型別與來源驗證。"},
+    {"id": "SEC-008", "severity": "P2", "status": "fixed", "disposition": "擴充電子郵件、電話、身分證、姓名、地址、付款卡、日期與憑證遮罩。"},
+    {"id": "SEC-009", "severity": "P2", "status": "fixed", "disposition": "NAS 基底映像使用 digest，套件來源以 lock 與 hash 約束。"},
+    {"id": "PERF-001", "severity": "P2", "status": "fixed", "disposition": "查詢、候選數與重疊門檻皆有界。"},
+    {"id": "LUX-RECOVERY", "severity": "P2", "status": "fixed", "disposition": "補回首頁、過期操作、測驗及不支援群組情境的可恢復路徑。"},
+    {"id": "OBS-008", "severity": "P3", "status": "deferred", "disposition": "已有分類、延遲及錯誤結構化日誌；外部時序監控屬 NAS 上線後的獨立維運整合。"}
+  ],
+  "verification": {
+    "pytest": {"tests": 1176, "result": "passed", "branchCoveragePercent": 82.91},
+    "ruff": "passed",
+    "bandit": "passed",
+    "dependencyAudit": "no known vulnerabilities in locked production dependencies",
+    "diffCheck": "passed",
+    "codeRabbit": "six findings fixed or rejected with code evidence"
+  },
+  "residualRisks": [
+    "LINE、模型供應商與 NAS 的真實外部路徑尚未在此快照做端到端驗收。",
+    "LINE reply token 無法提供跨網路邊界的 exactly-once 保證；系統選擇不確定結果不自動重送。",
+    "每日用量保險絲為程序記憶體狀態，服務重啟後重新計數。",
+    "規則式 PII 遮罩只能降低風險，無法保證辨識所有自由文字個資。",
+    "Antigravity 串流中斷，未產生可採信審查結果。"
+  ]
+}

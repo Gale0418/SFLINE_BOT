@@ -12,7 +12,7 @@
 - 開啟 LINE Use webhook，API 確認 active=true。30 題 Google 評估全部失敗，最小生成請求500，模型列表200。79 項離線測試通過。
 - Gemini 已完成 scripts/start_app.ps1 與 README 的程序限定 Google key 載入功能（request linebot-startup-20260908-01，cascade bfe6af07-ceb2-4237-a83c-80abc83b8024，已觀察完成 marker）。Codex 補修單行集合、來源必填與檔案型態驗證，已驗收前置邏輯。沒有第二個寫入者與其重疊修改。
 
-- Last organized: 2026-09-19
+- Last organized: 2026-09-20
 
 - Timestamp: 2026-09-08T15:51:42+08:00
   - Change: 依使用者要求，從38卡／116題擴充到50卡／150題，加入12張趣味科普卡、34題及10個新的隨機問句。
@@ -44,3 +44,10 @@
   - Change: 移除 `sw483` 代議民主與 `sw485` 抽籤選領導者，將正式知識庫收斂為 1234 張；重製 PPT v11 與逐頁講稿，機器人對話統一使用淺藍色，架構圖明列 Synology NAS／Docker。
   - Reason: 兩張卡偏一般政治制度，與天文、工程、科幻科技主線的耦合最低；同時讓簡報反映 100 張圖片、NAS 部署與目前驗證邊界。
   - Impact: 1153 項 pytest 通過，branch coverage 81.99%；PPT v11 11 頁、原生圖表、字型與版面驗證通過。未把程式測試宣稱為學習成效或模型準確率。
+
+## 2026-09-20
+
+- Timestamp: 2026-09-20T02:02:41+08:00
+  - Change: 完成 LB-006 兩輪多領域對抗審查、證據仲裁與 CodeRabbit 差異審查；修正持久化 webhook 收件匣、安全重試分類、中斷事件操作重排、模型請求限流與每日保險絲、PII 遮罩、導引資料遷移與保留、檢索界線、NAS 秘密分離與供應鏈鎖定。
+  - Reason: 排除會導致 LINE 不回覆、重複回覆、資料遺失、額度失控、敏感資料外送或 NAS 發布漂移的風險。
+  - Impact: 1176 項 pytest 通過，branch coverage 82.91%；Ruff、Bandit、鎖定正式依賴稽核與 diff check 通過；最終未處置 P0=0、P1=0。手機、外部模型與 NAS 真機驗收仍維持誠實邊界。

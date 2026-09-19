@@ -162,3 +162,14 @@
 - Date: 2026-09-19
 - Linked task ID: LB-001, LB-003, LB-E3, LB-E6
 - Run type: automated + presentation validation
+
+## ST-016｜可靠性、資安與效能對抗審查封箱
+
+- What was tested: LINE webhook 持久化收件匣、事件去重與隔離重送、回覆邊界、模型用量保險絲、PII 遮罩、導引學習保留策略、檢索上限、NAS 映像鎖定、健康檢查及操作復原流程。
+- How it was tested: 兩輪三席獨立盲審加證據仲裁；CodeRabbit 針對基準差異審查；完整 pytest 與 branch coverage；Ruff、Bandit、鎖定依賴 pip-audit、git diff check。
+- Expected result: 無未處置 P0/P1；所有可重現發現完成修復或留下可驗證的處置理由；不把本機測試冒充手機、外部模型或 NAS 實機證據。
+- Observed result: 1176 tests passed，82.91% branch coverage；Ruff、Bandit、鎖定正式依賴弱點稽核與 diff check 通過。安全的回覆前 SQLite 失敗可重試；不確定的 LINE 回覆結果不重送；中斷事件可由操作者明確承擔重複回覆風險後單次重排。最終未處置 P0=0、P1=0。
+- Result: Pass（本機發布與對抗審查）。手機實機 E2E、有效 30 題線上模型評估、NAS 真機部署與外部監控仍需獨立驗收。
+- Date: 2026-09-20
+- Linked task ID: LB-003, LB-005, LB-E3, LB-E4, LB-E5, LB-006
+- Run type: automated + adversarial review + external code review
