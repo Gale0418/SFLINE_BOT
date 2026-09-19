@@ -1,0 +1,48 @@
+name: eternal-polaris
+
+services:
+  bot:
+    build:
+      context: ../..
+      dockerfile: deploy/nas/Dockerfile
+    image: eternal-polaris-line-bot:local
+    container_name: eternal-polaris-bot
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: 5000
+      MODEL_TIMEOUT_SECONDS: 5
+      LEARNING_PATH: /app/data/private/learning.sqlite3
+      PUBLIC_BASE_URL: https://amuser-caterer-squeeze.ngrok-free.dev
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    volumes:
+      - ${POLARIS_DATA_DIR:-/volume1/docker/eternal-polaris/data/private}:/app/data/private
+      - /volume1/docker/eternal-polaris/backups:/app/backups
+    ports:
+      - "5050:5000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  ngrok:
+    image: ngrok/ngrok:3.39.11-alpine
+    container_name: eternal-polaris-ngrok
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    command:
+      - http
+      - bot:5000
+      - --url=amuser-caterer-squeeze.ngrok-free.dev
+      - --log=stdout
+    depends_on:
+      bot:
+        condition: service_healthy

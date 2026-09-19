@@ -49,11 +49,12 @@ class Settings:
     ai_provider: str = "openai"
     gemini_api_key: str = ""
     openai_model: str = "gpt-5.6-luna"
-    gemini_model: str = "gemma-4-31b-it"
+    gemini_model: str = "gemma-4-26b-a4b-it"
     openai_timeout_seconds: float = 5.0
     app_port: int = 5000
     knowledge_path: Path = Path("data/knowledge_cards.json")
     quiz_path: Path = Path("data/quiz_questions.tsv")
+    learning_path: Path = Path("data/private/learning.sqlite3")
     memory_ttl_seconds: int = 1800
     dedupe_ttl_seconds: int = 600
     quiz_ttl_seconds: int = 1800
@@ -63,6 +64,8 @@ class Settings:
     direct_match_min_score: float = 0.46
     direct_match_min_margin: float = 0.08
     line_reply_timeout_seconds: float = 2.0
+    public_base_url: str = ""
+    app_host: str = "127.0.0.1"
 
     def __post_init__(self) -> None:
         provider = self.ai_provider.strip().lower()
@@ -79,7 +82,7 @@ class Settings:
             google_key = self.gemini_api_key.strip()
             if not google_key:
                 raise ConfigurationError("AI_PROVIDER=google 需要 GEMINI_API_KEY")
-            google_model = self.gemini_model.strip() or "gemma-4-31b-it"
+            google_model = self.gemini_model.strip() or "gemma-4-26b-a4b-it"
             if not _is_google_model(google_model):
                 raise ConfigurationError("GEMINI_MODEL 必須是 gemma-* 或 gemini-* 模型 ID")
             object.__setattr__(self, "ai_provider", "google")
@@ -110,6 +113,14 @@ class Settings:
             raise ConfigurationError("DIRECT_MATCH_MIN_SCORE 或 DIRECT_MATCH_MIN_MARGIN 超出允許範圍")
         if not 0.1 <= self.line_reply_timeout_seconds <= 15.0:
             raise ConfigurationError("LINE_REPLY_TIMEOUT_SECONDS 超出允許範圍")
+        public_base_url = self.public_base_url.strip().rstrip("/")
+        if public_base_url and not public_base_url.startswith("https://"):
+            raise ConfigurationError("PUBLIC_BASE_URL 必須使用 HTTPS")
+        object.__setattr__(self, "public_base_url", public_base_url)
+        app_host = self.app_host.strip()
+        if not app_host:
+            raise ConfigurationError("APP_HOST 不可空白")
+        object.__setattr__(self, "app_host", app_host)
 
         service_budget = self.openai_timeout_seconds + self.line_reply_timeout_seconds
         serial_units = _worst_case_serial_units(
@@ -155,7 +166,10 @@ class Settings:
                 ai_provider=provider,
                 gemini_api_key=gemini_key,
                 openai_model=os.getenv("OPENAI_MODEL", "gpt-5.6-luna").strip() or "gpt-5.6-luna",
-                gemini_model=os.getenv("GEMINI_MODEL", "gemma-4-31b-it").strip() or "gemma-4-31b-it",
+                gemini_model=(
+                    os.getenv("GEMINI_MODEL", "gemma-4-26b-a4b-it").strip()
+                    or "gemma-4-26b-a4b-it"
+                ),
                 openai_timeout_seconds=float(
                     os.getenv(
                         "MODEL_TIMEOUT_SECONDS",
@@ -165,6 +179,7 @@ class Settings:
                 app_port=int(os.getenv("APP_PORT", "5000")),
                 knowledge_path=Path(os.getenv("KNOWLEDGE_PATH", "data/knowledge_cards.json")),
                 quiz_path=Path(os.getenv("QUIZ_PATH", "data/quiz_questions.tsv")),
+                learning_path=Path(os.getenv("LEARNING_PATH", "data/private/learning.sqlite3")),
                 memory_ttl_seconds=int(os.getenv("MEMORY_TTL_SECONDS", "1800")),
                 dedupe_ttl_seconds=int(os.getenv("DEDUPE_TTL_SECONDS", "600")),
                 quiz_ttl_seconds=int(os.getenv("QUIZ_TTL_SECONDS", "1800")),
@@ -174,6 +189,8 @@ class Settings:
                 direct_match_min_score=float(os.getenv("DIRECT_MATCH_MIN_SCORE", "0.46")),
                 direct_match_min_margin=float(os.getenv("DIRECT_MATCH_MIN_MARGIN", "0.08")),
                 line_reply_timeout_seconds=float(os.getenv("LINE_REPLY_TIMEOUT_SECONDS", "2")),
+                public_base_url=os.getenv("PUBLIC_BASE_URL", "").strip(),
+                app_host=os.getenv("APP_HOST", "127.0.0.1").strip(),
             )
         except ValueError as exc:
             raise ConfigurationError("數值型環境設定格式無效") from exc

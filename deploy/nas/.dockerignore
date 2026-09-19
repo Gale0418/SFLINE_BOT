@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+!.env.example
+.venv
+.pytest_cache
+.presentation-build
+__pycache__
+*.pyc
+data/private
+deliverables
+docs
+results
+tests

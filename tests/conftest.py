@@ -23,11 +23,12 @@ def quiz_bank() -> QuizBank:
 
 
 @pytest.fixture
-def settings() -> Settings:
+def settings(tmp_path) -> Settings:
     return Settings(
         openai_api_key="test-openai",
         line_channel_secret="test-line-secret",
         line_channel_access_token="test-line-token",
         knowledge_path=ROOT / "data" / "knowledge_cards.json",
         quiz_path=ROOT / "data" / "quiz_questions.tsv",
+        learning_path=tmp_path / "learning.sqlite3",
     )

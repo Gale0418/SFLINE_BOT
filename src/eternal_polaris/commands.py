@@ -6,6 +6,7 @@ from enum import StrEnum
 
 
 class Command(StrEnum):
+    GREETING = "greeting"
     HELP = "help"
     CHALLENGE = "challenge"
     RULES = "rules"
@@ -20,6 +21,10 @@ def normalize_command(text: str) -> str:
 
 
 _COMMANDS: dict[Command, frozenset[str]] = {
+    Command.GREETING: frozenset({
+        "你好", "您好", "嗨", "哈囉", "哈啰", "哈嘍", "早安", "午安", "晚安",
+        "hello", "hi", "hey", "(｀・ω・´)ゞ", "(￣▽￣)ゞ", "=w=", "owo",
+    }),
     Command.HELP: frozenset({
         "幫助", "帮助", "功能", "help", "/help", "使用說明", "使用说明",
         "怎麼用", "怎么用", "你會什麼", "你会什么", "你能做什麼", "你能做什么",
@@ -44,6 +49,12 @@ _COMMANDS: dict[Command, frozenset[str]] = {
 def route_command(text: str) -> Command | None:
     value = normalize_command(text)
     for command, aliases in _COMMANDS.items():
-        if value in aliases:
+        if value in {normalize_command(alias) for alias in aliases}:
             return command
+    # Emoji-only greetings exclude letters and digits so science questions and
+    # quiz answer letters retain their normal routing.
+    if value and not any(char.isalnum() for char in value) and any(
+        unicodedata.category(char) == "So" for char in value
+    ):
+        return Command.GREETING
     return None

@@ -21,7 +21,7 @@ def test_migration_is_atomic_and_does_not_print_values(tmp_path):
     text = output.read_text(encoding="utf-8")
     assert "NGROK_AUTHTOKEN=" in text
     assert "AI_PROVIDER=auto" in text
-    assert "GEMINI_MODEL=gemma-4-31b-it" in text
+    assert "GEMINI_MODEL=gemma-4-26b-a4b-it" in text
     assert ngrok.exists() and app.exists()
 
 

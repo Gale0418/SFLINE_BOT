@@ -27,6 +27,7 @@ dev = [
 eternal-polaris = "eternal_polaris.__main__:main"
 eternal-polaris-eval = "eternal_polaris.evaluation:main"
 eternal-polaris-migrate-secrets = "eternal_polaris.secret_migration:main"
+eternal-polaris-rich-menu = "eternal_polaris.rich_menu:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

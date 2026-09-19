@@ -14,7 +14,7 @@ def main() -> None:
     app = create_app(settings)
     dispatcher = app.extensions.get("event_dispatcher")
     try:
-        serve(app, host="127.0.0.1", port=settings.app_port, threads=4)
+        serve(app, host=settings.app_host, port=settings.app_port, threads=4)
     finally:
         if dispatcher is not None:
             dispatcher.shutdown(wait=True)

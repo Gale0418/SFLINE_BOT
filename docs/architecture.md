@@ -7,9 +7,9 @@
 - 受限來源的跨域科學自由問答。
 - 不依賴模型的 Help、Rules、Score、Quit 與五題式星之試煉。
 - 快速 Webhook ACK、同對話 FIFO、容量背壓、簽章驗證與有界記憶。
-- 可切換 **Google Gemma 4 31B** 或 **OpenAI Luna** 的模型 fallback。
+- 可在啟動時選擇 **Google Gemma 4 26B A4B** 或 **OpenAI Luna** 的 AI provider。
 
-本專題沒有自行訓練模型。96 題試煉採固定正解與人工撰寫解說，不由模型臨場生成。
+本專題沒有自行訓練模型。300題試煉採固定正解與人工撰寫解說，不由模型臨場生成；其中保留原始96題基線，並持續加入科學史、趣味科普、太陽系、小天體與電影科學內容。
 
 ## 2. AI Provider 策略
 
@@ -19,7 +19,7 @@
 google | openai | auto
 ```
 
-- `google`：使用 `GEMINI_API_KEY` 與 `GEMINI_MODEL`，預設 `gemma-4-31b-it`。
+- `google`：使用 `GEMINI_API_KEY` 與 `GEMINI_MODEL`，Demo 預設 `gemma-4-26b-a4b-it`。
 - `openai`：使用 `OPENAI_API_KEY` 與 `OPENAI_MODEL`，預設 `gpt-5.6-luna`。
 - `auto`：有 Google key 時優先 Google，否則使用 OpenAI。
 
@@ -43,11 +43,11 @@ flowchart LR
     D -->|Help / Rules| P[和藹長輩人格]
     D -->|Challenge / Answer| Z[QuizManager]
     D -->|普通問題| H[HybridAnswerService]
-    H -->|高信心| K[24 張本機知識卡]
+    H -->|高信心| K[1236 張本機知識卡]
     H -->|其他| S{AI_PROVIDER}
-    S -->|google| G[Gemini API / Gemma 4 31B]
+    S -->|google| G[Gemini API / Gemma 4 26B A4B]
     S -->|openai| O[OpenAI Responses / Luna]
-    Z --> B[96 題固定題庫]
+    Z --> B[300 題固定題庫]
     P --> X[LINE Reply API]
     K --> X
     G --> X
@@ -76,7 +76,7 @@ flowchart LR
   └─ 一般問題
        ├─ 知識卡高信心命中 → 固定事實回答（0 API 成本）
        └─ 不確定
-            ├─ Google → Gemma 4 31B
+            ├─ Google → Gemma 4 26B A4B
             └─ OpenAI → Luna
 ```
 
@@ -113,7 +113,7 @@ HMAC 同時納入加鹽後 user key，因此符文不能跨人使用；session �
 | `persona.py` | 和藹長輩與守門人情境語氣 |
 | `quiz.py` | 題庫驗證、場次、HMAC、評分與 TTL |
 | `line_gateway.py` | LINE TextMessage、Quick Reply 與單次 Reply API |
-| `knowledge.py` | 24 張知識卡與保守本機命中 |
+| `knowledge.py` | 1236 張知識卡、來源驗證與保守本機命中 |
 | `answer_service.py` | 本機優先、Google Gemma / OpenAI Luna 受限 fallback |
 | `config.py` | AI provider 選擇、金鑰與延遲預算 |
 | `memory.py` | 有界、短期、加鹽 hash 對話記憶與事件去重 |
@@ -123,7 +123,7 @@ HMAC 同時納入加鹽後 user key，因此符文不能跨人使用；session �
 Actions 只保留兩條永久工作流：
 
 - `Main CI`：安裝鎖定環境、依賴完整性、compile、完整測試、branch coverage 與離線評估資料驗證。
-- `Release certification`：只在 Main CI 成功後，唯讀 checkout **剛通過測試的精確 SHA**，再次驗證 96 題／16 主題／答案位置平衡、AI provider 契約與工作流清潔度。
+- `Release certification`：只在 Main CI 成功後，唯讀 checkout **剛通過測試的精確 SHA**，再次驗證300題／24主題／原始96題保留／答案位置平衡、AI provider契約與工作流清潔度。
 
 發布認證只有 `contents: read` 權限，不會自己 commit、push main 或移動 tag。裁判不修改被裁判的版本。
 

@@ -8,7 +8,7 @@
 
 自由問答現在支援兩條模型路徑：
 
-- **Google AI Studio / Gemini Developer API**：預設推薦 `gemma-4-31b-it`。Gemma 4 31B IT 可透過 Gemini API 代管使用；目前 Gemma 4 Free Tier 的輸入與輸出皆免費，但仍受 rate limit、quota、區域與服務政策限制。
+- **Google AI Studio / Gemini Developer API**：Demo 預設 `gemma-4-26b-a4b-it`。Google 官方同時列出 26B A4B 與 31B IT；本專案依 2026-09-08 的本機成功紀錄選 26B，仍須在正式展示當日重跑 smoke test。
 - **OpenAI**：若你已有可用額度，可切回 `gpt-5.6-luna`。
 
 設定方式：
@@ -28,7 +28,7 @@ AI_PROVIDER=google   # google | openai | auto
 ```text
 AI_PROVIDER=google
 GEMINI_API_KEY=你的_Google_AI_Studio_Key
-GEMINI_MODEL=gemma-4-31b-it
+GEMINI_MODEL=gemma-4-26b-a4b-it
 
 LINE_CHANNEL_SECRET=...
 LINE_CHANNEL_ACCESS_TOKEN=...
@@ -49,23 +49,50 @@ OPENAI_API_KEY=你的_OpenAI_Key
 OPENAI_MODEL=gpt-5.6-luna
 ```
 
-兩條路徑都使用相同的 24 張人工知識卡、相同 JSON 輸出契約與相同程式端驗證；OpenAI 路徑使用 Responses API structured output。
+兩條路徑都使用相同的 1236 張人工知識卡、相同 JSON 輸出契約與相同程式端驗證；OpenAI 路徑使用 Responses API structured output。
 
 ## 主要功能
+
+### 🩵 淺藍互動介面
+
+導引式學習、科學回答與星之試煉使用淺藍 Flex Message，四座寶庫各有一張 AI 生成主視覺；另備妥六格 Rich Menu，直接進入觀星、問答、四座寶庫、試煉、學習進度與功能說明。機器人不能替使用者變更 LINE 聊天室桌布，但能讓所有可控制的訊息卡片與選單維持一致配色。設計、圖片網址與套用方式見 [Rich Menu 與 Flex Message](docs/rich-menu-and-flex.md)。
+
+### 🌱 四座寶庫導引式學習
+
+說「學習」，老人會問「你對這世界感到好奇嗎？」再讓你選擇四條路線。每條四階段、每階段五段短講與理解題，五題複習挑戰答對四題解鎖下一階段。可以隨時追問、換路、暫停或繼續，四條路線各自保存進度。
+
+進度存在機器人伺服器的 SQLite，不會操作使用者手機資料。教材重組既有來源為 80 段，不另外灌算知識卡數量。這是規則式導引，尚非經校準的能力評量。儲存、隱私與實機驗收說明見 [導引學習設計](docs/guided-learning.md)。
 
 ### 💬 自由問答
 
 - 自由問答聚焦天文與科幻物理；地球、生命、量子、能源、AI 與太空工程由跨域試煉涵蓋。
-- 24 張人工整理知識卡作為受限上下文。
+- 1236 張人工整理知識卡作為參考；自由問答不限於卡片主題，亦可運用模型既有知識。每張卡都必須具備來源名稱與 HTTPS 網址；科幻卡明確區分作品設定與現實科學。
+- 天象路線新增日月食、凌日、掩星、合與衝、逆行、高層大氣發光、太空天氣與深空瞬變，分類與觀測安全見 [太空天象圖鑑](docs/celestial-phenomena-atlas.md)。
+- 科幻科技路線以作品能力、現實近親、核心障礙與四級可行性比較光劍、相位槍、護盾、複製機、全像甲板、隱形、仿生人與反物質核心，詳見 [科幻科技可行性圖鑑](docs/sci-fi-technology-feasibility.md)。
+- 從遙感五十號02星碎片事件延伸到軌道鑑識、監測、避碰、鈍化、離軌與科學化科技樹，詳見 [軌道碎片與技術發展](docs/technology-development-and-orbital-debris.md)。
+- 大月亮路線先盤點系外行星，再把月球替換成第二顆地球，計算視直徑、互鎖日長、潮汐、食季、通訊、交通與雙文明治理，詳見 [大月亮與雙地球](docs/big-moon-double-earth.md)。
+- 宇宙地產路線從《空之軌跡》導力飛船與神奇水晶的工程審核，延伸到行星估價、殲星能量、ISRU、太空採礦經濟與《外太空條約》，詳見 [宇宙地產大亨](docs/cosmic-real-estate-and-miracle-energy.md)。
+- 摩天都市路線從核心筒、風工程、電梯與消防，延伸到 Ecumenopolis、戴森群、環形世界、超級造船廠與分散式文明，詳見 [從摩天大樓到行星都市](docs/skyscrapers-ecumenopolis-and-megacity-engineering.md)。
+- 發電路線從電磁感應、熱機、核能、風光水地熱與儲能，延伸到電網穩定、德國能源轉型及情緒能源的科學審核，詳見 [從發電機到情緒能源](docs/power-generation-grid-and-fictional-energy.md)。
+- 最終策展把台灣觀星、肉眼星空、完整異星植物色盤、人體光合作用與城市行星缺口補齊，並說明卡片數量口徑，詳見 [最終內容策展審計](docs/final-curation-audit.md)。
+- 巨大機器人路線從平方立方律、地面承壓、關節、電源、散熱與駕駛員負荷，拆解鋼彈、米諾夫斯基粒子、變形金剛與火種源，詳見 [巨大機器人可行性圖鑑](docs/giant-robot-feasibility.md)。
+- 替代生命化學路線分開比較分子骨架、溶劑、能源與遺傳資訊，涵蓋碳基、矽基、液氨、甲烷海、硫代謝、砷生命爭議、電漿與機器生命，詳見 [替代生命化學圖鑑](docs/alternative-biochemistry.md)。
+- 天體尺度路線從星雲延伸到星團、星系、星系團與宇宙網，詳見 [星雲與宇宙結構圖鑑](docs/nebulae-and-cosmic-structures.md)。
+- 星海怪談以故事引導排查輻射、艙體聲響、脈衝星、時間膨脹與感測器幽靈，詳見 [星海怪談](docs/space-ghost-stories.md)。
+- 宇宙測距路線整理光速、光年、秒差距、視差、標準燭光、紅移與可觀測宇宙，詳見 [光與宇宙距離階梯](docs/light-and-cosmic-distance.md)。
+- 星空哲學實驗室從忒修斯之船延伸到人格同一、懷疑論、AI理解與倫理合作問題，並保留多立場與反例，詳見 [哲學思想實驗](docs/philosophy-thought-experiments.md)。
+- 宇宙終局路線以《最後的問題》式提問為入口，拆解熵、熱寂、暗能量結局、黑洞時代、資訊與計算極限、太空太陽能及創世者倫理，詳見 [宇宙終局與創世者倫理](docs/cosmic-endgame-and-creator-ethics.md)。
+- 遊戲與蜂巢文明路線從RTS數值抽象、射程與包圍幾何，走向真社會性、超個體、群體決策、生物製造、活體太空船與外星文明證據邊界，詳見 [遊戲戰場與蜂巢文明](docs/gameplay-swarms-and-alien-civilizations.md)。
 - 高信心命中時直接走本機知識卡，不呼叫任何外部 AI。
 - 其餘問題才交給目前選定的 Google Gemma 或 OpenAI Luna。
-- 回答標示「已觀測／已驗證」「理論上可描述但尚未實現」「科幻設定」或「超出範圍」。
+- 有卡片支持的回答保留科學分類與來源；一般知識自然回答，不冒用卡片引用。模型判斷缺乏依據或涉及即時資訊時使用 uncertain，顯示「這點我不是很確定」。這是模型自我判斷，不是自動事實查核，也不能保證辨識所有錯誤。
 
 ### 🗝️ 星之試煉
 
-- 96 道固定正解、固定解說、可追溯來源的四選一題目。
-- 16 個主題，涵蓋宇宙、恆星、太陽系、地質、海洋、演化、人體、相對論、量子、材料、能源、AI、太空工程與科幻邊界。
-- 四座正式寶庫各 24 題，另有跨領域「群星寶庫」。
+- 300 道固定正解、固定解說、可追溯來源的四選一題目；原96題完整保留。
+- 共24個主題；第二輪新增「行星與衛星深度探索」、「宇宙地址與星際航行」、「小天體與行星防禦」及「科幻電影科學實驗室」。
+- 星海之庫161題、地脈與生命之庫37題、萬象法則之庫30題、未來幻夢之庫72題，另有跨領域「群星寶庫」。
+- 新增12張趣味知識卡與34題（22題入門、12題中階）；「問個問題」提供10個趣味問句，詳見 `docs/fun-science.md`。
 - 見習、遠征、守門人與命運混合四種入口。
 - 每次隨機抽 5 題；可使用 Quick Reply 或直接輸入 A／B／C／D。
 - 每題立即公布正解、概念解說與來源，最後給出分數、最高連勝與稱號。
@@ -100,8 +127,8 @@ LINE Webhook
   ├─ Help / Quiz / Score / Quit 確定性路由
   ├─ QuizManager（簽章、TTL、進度、評分）
   └─ HybridAnswerService
-       ├─ 高信心 → 本機 24 張知識卡
-       └─ 其他 → Google Gemma 4 31B 或 OpenAI Luna
+       ├─ 高信心 → 本機 1236 張知識卡
+       └─ 其他 → Google Gemma 4 26B A4B 或 OpenAI Luna
 ```
 
 系統不做即時網路搜尋、RAG、向量資料庫、自行訓練模型或永久聊天紀錄。試煉題目不由 AI 臨場生成，避免答案漂移與展示時翻車。
@@ -136,7 +163,7 @@ LINE_CHANNEL_ACCESS_TOKEN=...
 
 AI_PROVIDER=google
 GEMINI_API_KEY=...
-GEMINI_MODEL=gemma-4-31b-it
+GEMINI_MODEL=gemma-4-26b-a4b-it
 ```
 
 OpenAI 方案：
@@ -170,6 +197,21 @@ OPENAI_MODEL=gpt-5.6-luna
 .\scripts\start_app.ps1
 ```
 
+若需指定 Google API Key 來源檔案與行號啟動（程序限定設定）：
+
+```powershell
+.\scripts\start_app.ps1 -GoogleKeySource D:\MyGame\OWO.TXT -GoogleKeyLine 4 -GoogleModel gemma-4-26b-a4b-it
+```
+
+說明：
+
+- 2026-09-08：`gemma-4-26b-a4b-it` 完成四次真實聊天 smoke test；31B 當日回傳 HTTP 500。這是帶日期的路徑證據，不代表永久可用，也不等於手機 E2E 或 30 題評估通過。
+- 支援自然閒聊與最近三組對話；閒聊不附科學標籤或來源。科學回答仍受知識卡與來源驗證限制。有對話歷史時交由模型理解上下文，不做忽略上下文的本機模糊匹配。
+
+- 指定 `-GoogleKeySource` 與 `-GoogleKeyLine` 會於程序限定 (Process scope) 設定 `AI_PROVIDER=google` 與 `GEMINI_API_KEY`；若未設定 `MODEL_TIMEOUT_SECONDS` 則該 Google 啟動設為 `5` 秒，避免舊的 `OPENAI_TIMEOUT_SECONDS=15` 造成安全驗證失敗。
+- LINE 機器人之憑證（如 LINE Channel 密鑰與 Access Token）仍由 `.env` 檔案提供。
+- 若不指定參數，則保留既有啟動行為。
+
 健康檢查：
 
 ```powershell
@@ -179,7 +221,7 @@ Invoke-RestMethod http://127.0.0.1:5000/health
 預期：
 
 ```json
-{"status":"ok","quiz_questions":96}
+{"status":"ok","knowledge_cards":1236,"quiz_questions":300}
 ```
 
 第二個 PowerShell：
@@ -202,14 +244,14 @@ Invoke-RestMethod http://127.0.0.1:5000/health
 測試涵蓋：
 
 - OpenAI Responses 結構化輸出。
-- Google Gemma 4 31B `generateContent`、Gemini API key header、`systemInstruction`、JSON-only 輸出、本機嚴格驗證與 `minimal` thinking。
+- Google Gemma 4 26B A4B `generateContent`、Gemini API key header、`systemInstruction`、JSON-only 輸出、本機嚴格驗證與 `minimal` thinking。
 - Google `gemini-*` 模型的 JSON structured output 路徑。
 - `AI_PROVIDER=auto|google|openai` 的選擇與「Google 優先但不偷燒 OpenAI」規則。
 - Provider 與 model ID 不匹配時拒絕啟動。
 - 簽章驗證、立即 ACK、容量不足 503 與事件去重。
 - 同使用者 FIFO、跨使用者並行與整批原子入列。
 - Help／Quiz／Score／Quit 路由邊界。
-- 96 題題庫結構、16 主題、難度與正解位置平衡。
+- 300 題題庫結構、24 主題、原96題保留、難度與正解位置平衡。
 - 答案符文竄改、跨使用者套用、舊題重播與 TTL。
 - LINE Quick Reply 的按鈕數、文字長度與 action schema。
 
@@ -228,7 +270,7 @@ Release certification 只有 `contents: read`，不會自己 commit、push main 
 
 - `docs/architecture.md`：系統資料流與可靠性邊界。
 - `docs/ai-providers.md`：Google Gemma／OpenAI 切換方式與隱私注意事項。
-- `docs/quiz-design.md`：96 題範圍、人格與互動設計。
+- `docs/quiz-design.md`：300 題範圍、原始 96 題基線、人格與互動設計。
 - `docs/quiz-strict-review-prompt.md`：嚴格專家審查提示詞。
 - `docs/demo-checklist.md`：手機 Demo 與截圖驗收。
 - `skills/science-vault-quiz/SKILL.md`：可重用的 LINE 科學測驗強化流程。

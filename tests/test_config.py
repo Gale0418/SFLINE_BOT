@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from pathlib import Path
 
 from eternal_polaris.config import ConfigurationError, Settings
 
@@ -15,7 +16,9 @@ _ENV_SECRET_NAMES = (
 
 
 def _clear(monkeypatch):
-    for name in _ENV_SECRET_NAMES + ("AI_PROVIDER", "OPENAI_MODEL", "GEMINI_MODEL"):
+    for name in _ENV_SECRET_NAMES + (
+        "AI_PROVIDER", "OPENAI_MODEL", "GEMINI_MODEL", "LEARNING_PATH", "PUBLIC_BASE_URL", "APP_HOST",
+    ):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -26,6 +29,16 @@ def test_missing_settings_report_names_only(monkeypatch, tmp_path):
     message = str(caught.value)
     assert "LINE_CHANNEL_SECRET" in message
     assert "test" not in message
+
+
+def test_learning_path_configuration(monkeypatch, tmp_path):
+    _clear(monkeypatch)
+    for name in ("OPENAI_API_KEY", "LINE_CHANNEL_SECRET", "LINE_CHANNEL_ACCESS_TOKEN"):
+        monkeypatch.setenv(name, "dummy")
+    monkeypatch.setenv("LEARNING_PATH", str(tmp_path / "progress.db"))
+    assert Settings.from_env(tmp_path / "missing.env").learning_path == tmp_path / "progress.db"
+    monkeypatch.delenv("LEARNING_PATH")
+    assert Settings.from_env(tmp_path / "missing.env").learning_path == Path("data/private/learning.sqlite3")
 
 
 def test_missing_ai_key_is_rejected_after_line_secrets(monkeypatch, tmp_path):
@@ -72,7 +85,7 @@ def test_auto_prefers_google_free_key(monkeypatch, tmp_path):
     settings = Settings.from_env(env_file)
     assert settings.ai_provider == "google"
     assert settings.openai_api_key == "google-secret"
-    assert settings.openai_model == "gemma-4-31b-it"
+    assert settings.openai_model == "gemma-4-26b-a4b-it"
 
 
 def test_google_api_key_alias_is_supported(monkeypatch, tmp_path):
@@ -166,3 +179,18 @@ def test_numeric_ranges_are_validated():
         Settings("openai", "secret", "token", quiz_ttl_seconds=0)
     with pytest.raises(ConfigurationError):
         Settings("openai", "secret", "token", line_reply_timeout_seconds=0)
+
+
+def test_public_base_url_requires_https_and_trims_slash():
+    assert Settings(
+        "openai", "secret", "token", public_base_url="https://example.test/"
+    ).public_base_url == "https://example.test"
+    with pytest.raises(ConfigurationError, match="PUBLIC_BASE_URL"):
+        Settings("openai", "secret", "token", public_base_url="http://example.test")
+
+
+def test_app_host_is_configurable_for_container_binding():
+    assert Settings("openai", "secret", "token").app_host == "127.0.0.1"
+    assert Settings("openai", "secret", "token", app_host="0.0.0.0").app_host == "0.0.0.0"
+    with pytest.raises(ConfigurationError, match="APP_HOST"):
+        Settings("openai", "secret", "token", app_host=" ")

@@ -23,6 +23,10 @@ def test_command_aliases(text, expected):
 
 
 def test_command_router_does_not_steal_science_questions():
+    assert route_command("你好，什麼是重力波？") is None
+    assert route_command("🌌 黑洞真的存在嗎？") is None
+    assert route_command("A") is None
+    assert route_command("???") is None
     assert route_command("挑戰者號太空梭發生了什麼？") is None
     assert route_command("自然選擇會遇到哪些挑戰？") is None
     assert route_command("請解釋費米悖論") is None

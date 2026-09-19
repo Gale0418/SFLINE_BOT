@@ -20,7 +20,7 @@ class Gateway:
     def __init__(self):
         self.replies = []
 
-    def reply_text(self, token, text, quick_replies=()):
+    def reply_text(self, token, text, quick_replies=(), *, hero_filename=""):
         self.replies.append((token, text, tuple(quick_replies)))
 
 
@@ -84,7 +84,7 @@ def test_follow_event_introduces_bot_and_actions(settings, knowledge, quiz_bank)
     response = _post(app, settings, _event_body("follow", event_id="follow-1"))
     assert response.status_code == 200
     assert "永恆北極星" in gateway.replies[-1][1]
-    assert len(gateway.replies[-1][2]) == 3
+    assert len(gateway.replies[-1][2]) == 4
 
 
 def test_postback_menu_vault_start_answer_and_quit(settings, knowledge, quiz_bank):

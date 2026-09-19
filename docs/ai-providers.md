@@ -1,15 +1,15 @@
 # AI Provider 設定
 
-更新日期：2026-09-04
+更新日期：2026-09-13
 
 「永恆北極星」自由問答支援 Google Gemini Developer API 與 OpenAI。試煉題庫不依賴任何 AI provider。
 
-## 推薦：Google Gemma 4 31B
+## Demo 預設：Google Gemma 4 26B A4B
 
-Google 已在 AI Studio / Gemini API 提供 Gemma 4，31B instruction-tuned 模型 ID：
+Google 官方的 Gemini API 文件同時列出 Gemma 4 26B A4B 與 31B IT。本專案把下列模型設為 Demo 預設：
 
 ```text
-gemma-4-31b-it
+gemma-4-26b-a4b-it
 ```
 
 本專案設定：
@@ -17,7 +17,7 @@ gemma-4-31b-it
 ```text
 AI_PROVIDER=google
 GEMINI_API_KEY=...
-GEMINI_MODEL=gemma-4-31b-it
+GEMINI_MODEL=gemma-4-26b-a4b-it
 ```
 
 Google Gemma 4 路徑：
@@ -28,6 +28,8 @@ Google Gemma 4 路徑：
 - Gemma 4 thinking level 設為 `minimal`，降低 LINE 回覆延遲。
 - 目前 Google Structured Outputs 的支援模型清單未明列 Gemma 4，因此本專案**不把 Gemma 4 的可用性賭在 response schema 上**：要求模型只輸出 JSON，再由程式嚴格解析並驗證 label、來源 ID、答案長度與知識卡引用。
 - 若未來改成支援 Structured Outputs 的 `gemini-*` 模型，Google 路徑才會送出 JSON schema。
+
+選擇 26B 是發布風險決策，不是品質排名：2026-09-08 的本機紀錄中，26B 完成四次真實聊天 smoke test，而 31B 當日回傳 HTTP 500。正式 Demo 仍須記錄當日模型、時間與結果；單次成功不等於 30 題評估或手機 E2E 已通過。`generateContent` 現階段保留以避免交付前遷移風險，改用較新的 Interactions API 列為交付後工作。
 
 官方資料：
 

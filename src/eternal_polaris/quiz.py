@@ -39,6 +39,85 @@ DIFFICULTY_NAMES = {
 }
 
 SOURCE_CATALOG = {
+    "movie_film": ("Sony Pictures Taiwan — 極限返航", "https://stg.sonypictures.com.tw/movies/jixianfanhang-project-hail-mary"),
+    "movie_potato": ("NASA — 深空糧食作物研究", "https://www.nasa.gov/science-research/nasa-plant-researchers-explore-question-of-deep-space-food-crops/"),
+    "movie_toxic": ("NASA — 火星高氯酸鹽處理研究", "https://www.nasa.gov/general/detoxifying-mars/"),
+    "movie_relativity": ("Einstein Online — 雙生子與時間", "https://www.einstein-online.info/en/spotlight/twins/"),
+    "movie_consult": ("NASA — 極限返航科學諮詢", "https://www.nasa.gov/general/nasa-exploration-science-inspire-project-hail-mary-film/"),
+    "solar_yr4": ("NASA — 2024 YR4", "https://science.nasa.gov/solar-system/asteroids/2024-yr4-facts/"),
+    "solar_meteors": ("NASA — 流星與隕石", "https://science.nasa.gov/solar-system/meteors-meteorites/"),
+    "solar_address": ("NASA — 太陽系的位置", "https://science.nasa.gov/solar-system/solar-system-facts/"),
+    "solar_galaxies": ("NASA — 宇宙大尺度結構", "https://science.nasa.gov/universe/galaxies/large-scale-structures/"),
+    "solar_parker": ("NASA — Parker 最近太陽飛掠紀錄", "https://science.nasa.gov/science-research/heliophysics/nasas-parker-solar-probe-makes-history-with-closest-pass-to-sun/"),
+    "solar_proxima": ("ESA/Hubble — 比鄰星", "https://esahubble.org/images/potw1343a/"),
+    "solar_mercury": ("NASA — 水星", "https://science.nasa.gov/mercury/facts/"),
+    "solar_venus": ("NASA — 金星", "https://science.nasa.gov/venus/venus-facts/"),
+    "solar_earth": ("NASA — 地球", "https://science.nasa.gov/earth/facts/"),
+    "solar_mars": ("NASA — 火星", "https://science.nasa.gov/mars/facts/"),
+    "solar_jupiter": ("NASA — 木星", "https://science.nasa.gov/jupiter/jupiter-facts/"),
+    "solar_saturn": ("NASA — 土星", "https://science.nasa.gov/saturn/facts/"),
+    "solar_uranus": ("NASA — 天王星", "https://science.nasa.gov/uranus/facts/"),
+    "solar_neptune": ("NASA — 海王星", "https://science.nasa.gov/neptune/neptune-facts/"),
+    "solar_sun": ("NASA — 太陽", "https://science.nasa.gov/sun/facts/"),
+    "solar_ice": ("LLNL — 超離子冰的原子結構", "https://www.llnl.gov/article/45336/giant-lasers-crystallize-water-shockwaves-revealing-atomic-structure-superionic-ice"),
+    "solar_pluto": ("NASA — 冥王星", "https://science.nasa.gov/dwarf-planets/pluto/facts/"),
+    "solar_asteroids": ("NASA — 小行星", "https://science.nasa.gov/solar-system/asteroids/facts/"),
+    "solar_comets": ("NASA — 彗星", "https://science.nasa.gov/solar-system/comets/facts/"),
+    "solar_atlas": ("NASA — 3I/ATLAS FAQ", "https://science.nasa.gov/solar-system/comets/3i-atlas/3i-atlas-facts-and-faqs/"),
+    "solar_europa": ("NASA — 為什麼探索木衛二", "https://science.nasa.gov/mission/europa-clipper/why-europa-overview/"),
+    "solar_enceladus": ("NASA — 土衛二", "https://science.nasa.gov/saturn/moons/enceladus/"),
+    "solar_phobos": ("NASA — 火衛一", "https://science.nasa.gov/mars/moons/phobos/"),
+    "solar_io": ("NASA — 木衛一", "https://science.nasa.gov/jupiter/jupiter-moons/io/facts/"),
+    "solar_ganymede": ("NASA — 木衛三", "https://science.nasa.gov/jupiter/jupiter-moons/ganymede/facts/"),
+    "solar_titan": ("NASA — 土衛六", "https://science.nasa.gov/saturn/moons/titan/facts/"),
+    "solar_triton": ("NASA — 海衛一", "https://science.nasa.gov/neptune/moons/triton/"),
+    "dwarf_overview": ("NASA — 矮行星總覽", "https://science.nasa.gov/dwarf-planets/"),
+    "dwarf_ceres": ("NASA — 穀神星", "https://science.nasa.gov/dwarf-planets/ceres/facts/"),
+    "dwarf_makemake": ("NASA — 鳥神星", "https://science.nasa.gov/dwarf-planets/makemake/"),
+    "iau_planet": ("IAU — 太陽系行星定義", "https://iau.org/Iau/Publications/List-of-Resolutions"),
+    "asteroid_apophis": ("NASA — 阿波菲斯", "https://science.nasa.gov/solar-system/asteroids/apophis-facts/"),
+    "asteroid_bennu": ("NASA — 貝努", "https://science.nasa.gov/solar-system/asteroids/101955-bennu/facts/"),
+    "asteroid_dart": ("NASA — Didymos 與 Dimorphos", "https://science.nasa.gov/solar-system/asteroids/didymos/"),
+    "asteroid_psyche": ("NASA — 靈神星", "https://science.nasa.gov/solar-system/asteroids/16-psyche/"),
+    "asteroid_lucy": ("NASA — Lucy 任務", "https://science.nasa.gov/mission/lucy/"),
+    "comet_halley": ("NASA — 哈雷彗星", "https://science.nasa.gov/solar-system/comets/1p-halley/"),
+    "comet_67p": ("NASA — 67P 彗星", "https://science.nasa.gov/solar-system/comets/67p-churyumov-gerasimenko/"),
+    "meteor_geminids": ("NASA — 雙子座流星雨", "https://science.nasa.gov/solar-system/meteors-meteorites/geminids/"),
+    "solar_kuiper": ("NASA — 古柏帶", "https://science.nasa.gov/solar-system/kuiper-belt/facts/"),
+    "solar_oort": ("NASA — 歐特雲", "https://science.nasa.gov/solar-system/oort-cloud/facts/"),
+    "solar_heliosphere": ("NASA — 太陽系邊界", "https://science.nasa.gov/resource/where-is-the-edge-of-the-solar-system/"),
+    "mission_voyager2": ("NASA — 航海家二號", "https://science.nasa.gov/mission/voyager/voyager-2/"),
+    "mission_travel": ("NASA — 前往月球、火星與木星要多久", "https://www.nasa.gov/directorates/smd/how-long-does-it-take-to-get-to-the-moon-mars-jupiter-we-asked-a-nasa-expert-episode-51/"),
+    "movie_blackhole": ("NASA — 黑洞附近的時間與潮汐", "https://science.nasa.gov/universe/what-happens-when-something-gets-too-close-to-a-black-hole/"),
+    "movie_sound": ("NASA — 太空中的聲音", "https://science.nasa.gov/science-research/planetary-science/01nov_ismsounds/"),
+    "movie_debris": ("NASA — 微流星體與軌道碎片", "https://www.nasa.gov/centers-and-facilities/white-sands/micrometeoroids-and-orbital-debris-mmod/"),
+    "movie_artificial_gravity": ("NASA NTRS — 人工重力", "https://ntrs.nasa.gov/citations/20030033919"),
+    "fun_ov022": ("USGS — 地球內部", "https://pubs.usgs.gov/gip/interior/"),
+    "fun_ov023": ("NASA — 臭氧洞是什麼", "https://ozonewatch.gsfc.nasa.gov/facts/hole_SH.html"),
+    "fun_ov024": ("NASA Space Place — 藍天", "https://spaceplace.nasa.gov/blue-sky/en/"),
+    "fun_ov025": ("NOAA NESDIS — 彩虹成因", "https://www.nesdis.noaa.gov/about/k-12-education/optical-phenomena/what-causes-rainbow"),
+    "fun_ov026": ("NASA — 月亮常見問題", "https://science.nasa.gov/moon/top-moon-questions/"),
+    "fun_ov027": ("NOAA Ocean Exploration — 章魚的三顆心", "https://oceanexplorer.noaa.gov/news/exploration-extras/22valentines/media/octopus.pdf"),
+    "fun_ov028": ("英國南極調查局 — 極地海洋", "https://www.bas.ac.uk/news/state-of-the-polar-oceans-report-published/"),
+    "fun_ov029": ("英國自然史博物館 — 存活的恐龍", "https://www.nhm.ac.uk/discover/why-are-birds-the-only-surviving-dinosaurs.html"),
+    "fun_ov030": ("NASA — 金星資料", "https://science.nasa.gov/venus/venus-facts/"),
+    "fun_ov031": ("NASA Cassini — 土星環常見問題", "https://science.nasa.gov/mission/cassini/faq/"),
+    "fun_ov032": ("NASA Space Place — 極光", "https://spaceplace.nasa.gov/aurora/en/"),
+    "fun_ov033": ("NASA — 電磁波與機械波", "https://science.nasa.gov/ems/02_anatomy/"),
+    "history_ov019": ("美國國會圖書館 — 宇宙模型史", "https://www.loc.gov/collections/finding-our-place-in-the-cosmos-with-carl-sagan/articles-and-essays/modeling-the-cosmos/"),
+    "history_ov020": ("美國國會圖書館 — 日心宇宙", "https://www.loc.gov/exhibits/exploring-the-early-americas/interactives/heavens-and-earth/heavens/artifact10-heaven.html"),
+    "history_ov021": ("伽利略博物館 — 生平年表", "https://www.museogalileo.it/en/galileo/life.html"),
+    "history_ov011": ("美國國會圖書館 — 月球上的居民與生物", "https://www.loc.gov/collections/finding-our-place-in-the-cosmos-with-carl-sagan/articles-and-essays/life-on-other-worlds/peoples-and-creatures-of-the-moon/"),
+    "history_ov012": ("NASA — 水手四號的成就", "https://science.nasa.gov/mars/triumph-of-mariner-4/"),
+    "history_ov013": ("英國自然史博物館 — 皮爾當人", "https://www.nhm.ac.uk/our-science/services/library/collections/piltdown-man.html"),
+    "history_ov014": ("NASA/JPL — 2012科學查核", "https://www.jpl.nasa.gov/videos/2012-a-scientific-reality-check/"),
+    "history_ov015": ("NASA — 所謂火星人臉", "https://science.nasa.gov/photojournal/the-so-called-face-on-mars/"),
+    "history_ov016": ("劍橋丘吉爾檔案中心 — 尋找脈衝星", "https://archives.chu.cam.ac.uk/collections/research-guides/misc-109/"),
+    "history_sf009": ("Sony Pictures — 2012", "https://www.sonypictures.com/movies/2012"),
+    "history_ov017": ("美國政府問責署GAO — Y2K風險治理回顧", "https://files.gao.gov/reports/105184/index.html"),
+    "history_ov018": ("諾斯特拉達穆斯原詩 — 1867年版本第十卷第72首", "https://fr.wikisource.org/wiki/Page%3ANostradamus_-_Les_oracles_-1867.djvu/224"),
+    "loc_halley": ("美國國會圖書館 — 哈雷彗星歷史報刊", "https://guides.loc.gov/chronicling-america-halleys-comet"),
+    "loc_radio": ("美國國會圖書館 — 世界大戰廣播", "https://blogs.loc.gov/loc/2016/10/lcm-page-from-the-past-war-of-the-worlds/"),
     "nasa_universe": ("NASA Science — Universe", "https://science.nasa.gov/universe/"),
     "nasa_stars": ("NASA Science — Stars", "https://science.nasa.gov/universe/stars/"),
     "nasa_solar": ("NASA Science — Solar System", "https://science.nasa.gov/solar-system/"),
@@ -181,8 +260,8 @@ class QuizBank:
         )
 
     def _validate(self) -> None:
-        if len(self.questions) != 96 or len(self.by_id) != 96:
-            raise QuizError("題庫必須包含 96 題且 ID 不可重複")
+        if len(self.questions) < 220 or len(self.by_id) != len(self.questions):
+            raise QuizError("題庫不得少於原始220題，且 ID 不可重複")
         formal_vaults = set(VAULTS) - {"all"}
         difficulties = set(DIFFICULTY_NAMES) - {"mixed"}
         for question in self.questions:
@@ -199,15 +278,21 @@ class QuizBank:
             if len(question.prompt) > 260 or max(map(len, question.choices)) > 80:
                 raise QuizError(f"題目 {question.id} 超過 LINE 顯示安全長度")
 
-        vault_counts = Counter(question.vault for question in self.questions)
-        if vault_counts != Counter({vault: 24 for vault in formal_vaults}):
-            raise QuizError("四座正式寶庫必須各有 24 題")
         pair_counts = Counter((question.vault, question.difficulty) for question in self.questions)
-        if pair_counts != Counter({(vault, difficulty): 8 for vault in formal_vaults for difficulty in difficulties}):
-            raise QuizError("每座寶庫的三種難度必須各有 8 題")
+        baseline_difficulties = {
+            "cosmos": (54, 38, 14),
+            "living_world": (16, 13, 8),
+            "laws": (12, 10, 8),
+            "future": (20, 19, 8),
+        }
+        for vault, counts in baseline_difficulties.items():
+            for difficulty, minimum in zip(("easy", "medium", "hard"), counts, strict=True):
+                if pair_counts[vault, difficulty] < minimum:
+                    raise QuizError(f"{vault}/{difficulty} 不得少於原始題庫基線 {minimum} 題")
         topic_counts = Counter(question.topic for question in self.questions)
-        if len(topic_counts) != 16 or set(topic_counts.values()) != {6}:
-            raise QuizError("題庫必須涵蓋 16 個主題且每個主題 6 題")
+        expansion_baseline = {"科學史與媒體識讀": 20, "好奇心小學堂": 34, "太陽系驚奇之旅": 50, "電影裡的科學": 20}
+        if len(topic_counts) < 20 or any(topic_counts[topic] < count for topic, count in expansion_baseline.items()):
+            raise QuizError("須保留原20主題與既有擴充內容；允許繼續增加新主題與題目")
         for vault in formal_vaults:
             for difficulty in difficulties:
                 positions = Counter(
@@ -215,7 +300,7 @@ class QuizBank:
                     for question in self.questions
                     if question.vault == vault and question.difficulty == difficulty
                 )
-                if positions != Counter({letter: 2 for letter in LETTERS}):
+                if max(positions[letter] for letter in LETTERS) - min(positions[letter] for letter in LETTERS) > 1:
                     raise QuizError(f"{vault}/{difficulty} 的正解位置必須平均分布")
 
     def select(self, *, vault: str, difficulty: str) -> tuple[QuizQuestion, ...]:

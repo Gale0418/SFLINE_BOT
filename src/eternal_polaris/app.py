@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import random
 import time
 from pathlib import Path
 from typing import Any, Sequence
 
-from flask import Flask, Response, abort, jsonify, request
+from flask import Flask, Response, abort, jsonify, request, send_from_directory
 from linebot.v3 import WebhookParser
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import FollowEvent, MessageEvent, PostbackEvent, TextMessageContent
@@ -23,6 +24,8 @@ from .commands import Command, normalize_command, route_command
 from .config import Settings
 from .dispatcher import EventDispatcher, ThreadPoolEventDispatcher
 from .knowledge import KnowledgeBase
+from .knowledge_images import FEATURED_IMAGE_FILES, image_filename_for_sources
+from .learning import LearningManager, ROUTE_COMMANDS
 from .line_gateway import LineReplyGateway, QuickReplyOption, ReplyGateway
 from .memory import ConversationMemory, EventDeduplicator
 from .quiz import (
@@ -41,6 +44,18 @@ UNSUPPORTED_REPLY = "我目前只看得懂一對一聊天室中的文字訊息�
 QUESTION_TOO_LONG_REPLY = "這段訊息太長了。請把問題縮短到 1000 個字以內，我們再慢慢談。"
 EMPTY_MESSAGE_REPLY = "我似乎只聽見了一陣安靜。寫下一個天文問題，或說『挑戰』敲響寶庫吧。"
 BUSY_REPLY = "Busy"
+CHILD_QUESTIONS = (
+    "天空為什麼是藍色的？",
+    "彩虹可以走上去嗎？",
+    "白天為什麼也看得到月亮？",
+    "章魚真的有三顆心臟嗎？",
+    "北極熊會在南極追企鵝嗎？",
+    "麻雀也算恐龍嗎？",
+    "金星一天真的比一年長嗎？",
+    "土星的環可以當溜滑梯嗎？",
+    "極光是天空在變魔術嗎？",
+    "太空爆炸真的會轟一聲嗎？",
+)
 
 
 def create_app(
@@ -55,6 +70,7 @@ def create_app(
     memory: ConversationMemory | None = None,
     deduplicator: EventDeduplicator | None = None,
     dispatcher: EventDispatcher | None = None,
+    learning_manager: LearningManager | None = None,
 ) -> Flask:
     settings = settings or Settings.from_env()
     knowledge = knowledge or KnowledgeBase.load(_resolve_path(settings.knowledge_path))
@@ -76,6 +92,7 @@ def create_app(
     reply_gateway = reply_gateway or LineReplyGateway(
         settings.line_channel_access_token,
         request_timeout_seconds=settings.line_reply_timeout_seconds,
+        public_base_url=settings.public_base_url,
     )
     memory = memory or ConversationMemory(
         salt=settings.line_channel_secret,
@@ -99,6 +116,11 @@ def create_app(
     app.config["MAX_CONTENT_LENGTH"] = 64 * 1024
     app.logger.setLevel(logging.INFO)
     app.extensions["event_dispatcher"] = dispatcher
+    learning_manager = learning_manager or LearningManager(
+        _resolve_path(settings.learning_path), salt=settings.line_channel_secret,
+        knowledge=knowledge, bank=quiz_bank,
+    )
+    app.extensions["learning_manager"] = learning_manager
 
     def process_event(event: Any) -> None:
         _handle_event(
@@ -110,11 +132,28 @@ def create_app(
             deduplicator=deduplicator,
             quiz_manager=quiz_manager,
             logger=app.logger,
+            learning_manager=learning_manager,
         )
 
     @app.get("/health")
     def health():
-        return jsonify(status="ok", quiz_questions=len(quiz_bank.questions)), 200
+        return jsonify(
+            status="ok",
+            knowledge_cards=len(knowledge.cards),
+            quiz_questions=len(quiz_bank.questions),
+        ), 200
+
+    @app.get("/media/knowledge/<name>")
+    def knowledge_media(name: str):
+        allowed = {
+            "vault-cosmos.jpg", "vault-living-world.jpg",
+            "vault-laws.jpg", "vault-future.jpg",
+        } | FEATURED_IMAGE_FILES
+        if name not in allowed:
+            abort(404)
+        return send_from_directory(
+            _resolve_path(Path("assets/knowledge")), name, max_age=86_400,
+        )
 
     @app.post("/callback")
     def callback():
@@ -174,6 +213,7 @@ def _handle_event(
     deduplicator: EventDeduplicator,
     quiz_manager: QuizManager,
     logger: logging.Logger,
+    learning_manager: LearningManager | None = None,
 ) -> None:
     event_id = str(getattr(event, "webhook_event_id", "") or "")
     if not deduplicator.first_seen(event_id):
@@ -197,6 +237,17 @@ def _handle_event(
             logger.info("event=reply_sent category=welcome")
             return
         if isinstance(event, PostbackEvent):
+            data = str(getattr(event.postback, "data", "") or "")
+            if learning_manager and data.startswith("learn:"):
+                if quiz_manager.current(user_id):
+                    _reply(reply_gateway, reply_token, "一般試煉進行中。先退出，或輸入「學習」切換到導引路線。")
+                    return
+                result = learning_manager.handle(user_id, data, postback=True)
+                _reply(reply_gateway, reply_token, *result)
+                memory.add(user_id, "目前學習內容", result[0])
+                return
+            if learning_manager and data.startswith(("ep:challenge", "ep:start:", "ep:quit")):
+                learning_manager.pause(user_id)
             _handle_postback(event, user_id, reply_token, reply_gateway, quiz_manager, logger)
             return
         if not isinstance(event, MessageEvent) or not isinstance(event.message, TextMessageContent):
@@ -222,6 +273,7 @@ def _handle_event(
             memory=memory,
             quiz_manager=quiz_manager,
             logger=logger,
+            learning_manager=learning_manager,
         )
     except Exception as exc:
         deduplicator.forget(event_id)
@@ -240,8 +292,22 @@ def _handle_text(
     memory: ConversationMemory,
     quiz_manager: QuizManager,
     logger: logging.Logger,
+    learning_manager: LearningManager | None = None,
 ) -> None:
+    if learning_manager:
+        normalized = normalize_command(text)
+        switching = normalized in {"學習", "開始學習", "繼續學習"} or normalized in ROUTE_COMMANDS
+        if switching:
+            quiz_manager.quit(user_id)
+        if switching or quiz_manager.current(user_id) is None or normalized in {"學習進度", "學習地圖", "暫停學習", "刪除學習進度"}:
+            result = learning_manager.handle(user_id, text)
+            if result:
+                _reply(reply_gateway, reply_token, *result)
+                memory.add(user_id, "目前學習內容", result[0])
+                return
     command = route_command(text)
+    if learning_manager and command in (Command.QUIT, Command.CHALLENGE):
+        learning_manager.pause(user_id)
     if command is Command.HELP:
         _reply(reply_gateway, reply_token, persona.HELP_TEXT, _home_options())
         logger.info("event=reply_sent category=help")
@@ -298,6 +364,12 @@ def _handle_text(
         logger.info("event=reply_sent category=quiz_reminder")
         return
 
+    if command is Command.GREETING and not memory.get(user_id):
+        _reply(reply_gateway, reply_token, persona.WELCOME_TEXT, _home_options())
+        memory.add(user_id, text, persona.WELCOME_TEXT)
+        logger.info("event=reply_sent category=greeting")
+        return
+
     started = time.monotonic()
     answer = None
     try:
@@ -307,7 +379,11 @@ def _handle_text(
     except Exception as exc:
         logger.error("event=answer_failed category=service_error error_type=%s", type(exc).__name__)
         rendered = SERVICE_ERROR_REPLY
-    _reply(reply_gateway, reply_token, rendered, _after_answer_options())
+    hero_filename = image_filename_for_sources(answer.source_ids) if answer is not None else ""
+    _reply(
+        reply_gateway, reply_token, rendered, _after_answer_options(),
+        hero_filename=hero_filename,
+    )
     if answer is not None:
         memory.add(user_id, text, rendered)
         elapsed_ms = int((time.monotonic() - started) * 1000)
@@ -438,13 +514,16 @@ def _reply(
     token: str,
     text: str,
     options: Sequence[QuickReplyOption] = (),
+    *,
+    hero_filename: str = "",
 ) -> None:
-    gateway.reply_text(token, text, options)
+    gateway.reply_text(token, text, options, hero_filename=hero_filename)
 
 
 def _home_options() -> tuple[QuickReplyOption, ...]:
     return (
-        QuickReplyOption("🔭 問個問題", message_text="黑洞真的存在嗎？"),
+        QuickReplyOption("🌱 導引式學習", message_text="學習"),
+        QuickReplyOption("🔭 問個問題", message_text=random.choice(CHILD_QUESTIONS)),
         QuickReplyOption("🗝️ 接受試煉", data="ep:challenge", display_text="挑戰"),
         QuickReplyOption("📜 查看功能", message_text="幫助"),
     )
@@ -452,6 +531,8 @@ def _home_options() -> tuple[QuickReplyOption, ...]:
 
 def _after_answer_options() -> tuple[QuickReplyOption, ...]:
     return (
+        QuickReplyOption("🌱 繼續學習", message_text="繼續學習"),
+        QuickReplyOption("🔭 問個問題", message_text=random.choice(CHILD_QUESTIONS)),
         QuickReplyOption("🗝️ 接受試煉", data="ep:challenge", display_text="挑戰"),
         QuickReplyOption("📜 查看功能", message_text="幫助"),
     )
@@ -460,7 +541,7 @@ def _after_answer_options() -> tuple[QuickReplyOption, ...]:
 def _rules_options() -> tuple[QuickReplyOption, ...]:
     return (
         QuickReplyOption("🗝️ 開始試煉", data="ep:challenge", display_text="挑戰"),
-        QuickReplyOption("🔭 回到問答", message_text="黑洞真的存在嗎？"),
+        QuickReplyOption("🔭 回到問答", message_text=random.choice(CHILD_QUESTIONS)),
     )
 
 
@@ -490,12 +571,9 @@ def _answer_options(
 ) -> tuple[QuickReplyOption, ...]:
     options: list[QuickReplyOption] = []
     for letter, choice in zip(LETTERS, session.current_question.choices, strict=True):
-        label = f"{letter}｜{choice}"
-        if len(label) > 20:
-            label = label[:19] + "…"
         options.append(
             QuickReplyOption(
-                label,
+                "ⒶⒷⒸⒹ"[LETTERS.index(letter)],
                 data=answer_postback_data(quiz_manager, user_id, session, letter),
                 display_text=f"{letter}. {choice}",
             )

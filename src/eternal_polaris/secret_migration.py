@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -79,7 +80,7 @@ def migrate(ngrok_source: Path, app_source: Path, output: Path) -> tuple[str, ..
                 handle.write(f"{name}={merged[name]}\n")
             handle.write(
                 "AI_PROVIDER=auto\n"
-                "GEMINI_MODEL=gemma-4-31b-it\n"
+                "GEMINI_MODEL=gemma-4-26b-a4b-it\n"
                 "OPENAI_MODEL=gpt-5.6-luna\n"
                 "MODEL_TIMEOUT_SECONDS=5\n"
                 "APP_PORT=5000\n"
@@ -100,12 +101,48 @@ def migrate(ngrok_source: Path, app_source: Path, output: Path) -> tuple[str, ..
     return names_to_write
 
 
+def import_openai_key(source: Path, output: Path) -> None:
+    """Import only the requested key without printing it or changing providers."""
+    raw = source.read_text(encoding="utf-8-sig")
+    candidates = set(re.findall(r"(?<![A-Za-z0-9_-])sk-[A-Za-z0-9_-]{20,}", raw))
+    if len(candidates) != 1:
+        raise SecretMigrationError("來源須含唯一一把 OpenAI 金鑰；未變更設定")
+    key = candidates.pop()
+    current = output.read_text(encoding="utf-8-sig") if output.exists() else ""
+    pattern = r"(?m)^[ \t]*(?:export[ \t]+)?OPENAI_API_KEY[ \t]*=.*$"
+    if len(re.findall(pattern, current)) > 1:
+        raise SecretMigrationError("本機 OPENAI_API_KEY 重複；未變更設定")
+    updated = (re.sub(pattern, "OPENAI_API_KEY=" + key, current)
+               if re.search(pattern, current)
+               else current.rstrip("\n") + "\nOPENAI_API_KEY=" + key + "\n")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".env.", dir=output.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(updated)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, output)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="安全地將既有金鑰來源遷移為 .env")
-    parser.add_argument("--ngrok-source", type=Path, required=True)
-    parser.add_argument("--app-source", type=Path, required=True)
+    parser.add_argument("--ngrok-source", type=Path)
+    parser.add_argument("--app-source", type=Path)
+    parser.add_argument("--openai-source", type=Path)
     parser.add_argument("--output", type=Path, default=Path(".env"))
     args = parser.parse_args()
+    if args.openai_source:
+        try:
+            import_openai_key(args.openai_source, args.output)
+        except (SecretMigrationError, OSError, UnicodeError) as exc:
+            raise SystemExit("OpenAI 金鑰匯入失敗；請檢查來源格式與本機檔案權限") from None
+        print("OPENAI_API_KEY 已存入本機；其他設定與原始檔保留，未進行 API 呼叫。")
+        return
+    if not args.ngrok_source or not args.app_source:
+        parser.error("請提供 --openai-source，或同時提供 --ngrok-source 與 --app-source")
     try:
         names = migrate(args.ngrok_source, args.app_source, args.output)
     except SecretMigrationError as exc:

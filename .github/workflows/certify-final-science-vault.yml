@@ -39,6 +39,7 @@ jobs:
           from __future__ import annotations
 
           import importlib.util
+          import json
           import sys
           from collections import Counter
           from pathlib import Path
@@ -57,22 +58,51 @@ jobs:
           spec.loader.exec_module(module)
           bank = module.QuizBank.load(root / 'data/quiz_questions.tsv')
 
-          assert len(bank.questions) == 96
-          assert len(bank.by_id) == 96
+          assert len(bank.questions) == 300
+          assert len(bank.by_id) == 300
           topic_counts = Counter(question.topic for question in bank.questions)
-          assert len(topic_counts) == 16
-          assert set(topic_counts.values()) == {6}
+          assert len(topic_counts) == 24
+          assert topic_counts['科學史與媒體識讀'] == 20
+          assert topic_counts['好奇心小學堂'] == 34
+          assert topic_counts['太陽系驚奇之旅'] == 50
+          assert topic_counts['電影裡的科學'] == 20
+          assert topic_counts['小天體與行星防禦'] == 25
+          assert topic_counts['科幻電影科學實驗室'] == 25
+          assert topic_counts['行星與衛星深度探索'] == 19
+          assert topic_counts['宇宙地址與星際航行'] == 11
+          assert all(
+              count == 6
+              for topic, count in topic_counts.items()
+              if topic not in {
+                  '科學史與媒體識讀', '好奇心小學堂', '太陽系驚奇之旅',
+                  '電影裡的科學', '小天體與行星防禦', '科幻電影科學實驗室',
+                  '行星與衛星深度探索', '宇宙地址與星際航行',
+              }
+          )
+
+          id_groups = Counter(question.id[0] for question in bank.questions)
+          assert id_groups == Counter({
+              'S': 80, 'M': 45, 'K': 34, 'A': 25,
+              'C': 24, 'L': 24, 'P': 24, 'F': 24, 'H': 20,
+          })
+
+          cards = json.loads((root / 'data/knowledge_cards.json').read_text(encoding='utf-8'))
+          assert len(cards) == 1236
+          assert len({card['id'] for card in cards}) == 1236
 
           formal_vaults = set(module.VAULTS) - {'all'}
           difficulties = set(module.DIFFICULTY_NAMES) - {'mixed'}
           pair_counts = Counter((q.vault, q.difficulty) for q in bank.questions)
+          expected_difficulties = {
+              'cosmos': (77, 62, 22),
+              'living_world': (16, 13, 8),
+              'laws': (12, 10, 8),
+              'future': (30, 29, 13),
+          }
           assert pair_counts == Counter({
-              (vault, difficulty): 8
-              for vault in formal_vaults
-              for difficulty in difficulties
-          })
-          assert Counter(q.correct_letter for q in bank.questions) == Counter({
-              'A': 24, 'B': 24, 'C': 24, 'D': 24,
+              (vault, difficulty): count
+              for vault, counts in expected_difficulties.items()
+              for difficulty, count in zip(('easy', 'medium', 'hard'), counts, strict=True)
           })
           for vault in formal_vaults:
               for difficulty in difficulties:
@@ -80,7 +110,9 @@ jobs:
                       q.correct_letter for q in bank.questions
                       if q.vault == vault and q.difficulty == difficulty
                   )
-                  assert positions == Counter({'A': 2, 'B': 2, 'C': 2, 'D': 2})
+                  assert max(positions[letter] for letter in module.LETTERS) - min(
+                      positions[letter] for letter in module.LETTERS
+                  ) <= 1
 
           required = {
               'src/eternal_polaris/app.py',
@@ -94,6 +126,9 @@ jobs:
               'data/quiz_questions.tsv',
               'docs/ai-providers.md',
               'docs/architecture.md',
+              'docs/fun-science.md',
+              'docs/science-history.md',
+              'tests/test_fun_science.py',
               '.github/workflows/ci.yml',
               '.github/workflows/certify-final-science-vault.yml',
           }
@@ -101,8 +136,11 @@ jobs:
 
           # Only persistent validation workflows may remain. Old bootstrap,
           # publish, tag-moving and self-modifying finalizers are forbidden.
+          workflow_dir = root / '.github/workflows'
           workflow_names = {
-              path.name for path in (root / '.github/workflows').glob('*.yml')
+              path.name
+              for pattern in ('*.yml', '*.yaml')
+              for path in workflow_dir.glob(pattern)
           }
           assert workflow_names == {
               'ci.yml',
@@ -113,7 +151,7 @@ jobs:
           answer_text = (root / 'src/eternal_polaris/answer_service.py').read_text(encoding='utf-8')
           readme = (root / 'README.md').read_text(encoding='utf-8')
           assert 'AI_PROVIDER' in config_text
-          assert 'gemma-4-31b-it' in config_text
+          assert 'gemma-4-26b-a4b-it' in config_text
           assert 'gpt-5.6-luna' in config_text
           assert 'generativelanguage.googleapis.com' in answer_text
           assert 'x-goog-api-key' in answer_text

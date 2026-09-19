@@ -15,24 +15,35 @@ from eternal_polaris.quiz import (
 
 
 def test_bank_has_balanced_96_question_shape(quiz_bank):
-    assert len(quiz_bank.questions) == 96
-    assert len({question.topic for question in quiz_bank.questions}) == 16
+    assert len(quiz_bank.questions) == 300
+    original = [q for q in quiz_bank.questions if q.id[0] not in ("A", "H", "K", "S", "M")]
+    assert len(original) == 96
+    assert len({question.topic for question in original}) == 16
     assert all(question.source_url.startswith("https://") for question in quiz_bank.questions)
     for vault in set(VAULTS) - {"all"}:
-        assert sum(question.vault == vault for question in quiz_bank.questions) == 24
+        assert sum(question.vault == vault for question in original) == 24
         for difficulty in set(DIFFICULTY_NAMES) - {"mixed"}:
             rows = [
                 question
-                for question in quiz_bank.questions
+                for question in original
                 if question.vault == vault and question.difficulty == difficulty
             ]
             assert len(rows) == 8
-            assert {letter: sum(question.correct_letter == letter for question in rows) for letter in LETTERS} == {
-                "A": 2,
-                "B": 2,
-                "C": 2,
-                "D": 2,
-            }
+            # Original IDs sort before the expansion, preserving base balance.
+            assert {letter: sum(question.correct_letter == letter for question in rows) for letter in LETTERS} == {letter: 2 for letter in LETTERS}
+
+
+def test_history_expansion_is_available_and_balanced(quiz_bank):
+    history = [q for q in quiz_bank.questions if q.id.startswith("H")]
+    assert len(history) == 20
+    assert {q.id for q in history} == {f"H{i:03}" for i in range(1, 21)}
+    assert all(q in quiz_bank.select(vault="cosmos", difficulty="mixed") for q in history)
+    for difficulty in ("easy", "medium", "hard"):
+        group = quiz_bank.select(vault="cosmos", difficulty=difficulty)
+        counts = [sum(q.correct_letter == letter for q in group) for letter in LETTERS]
+        assert max(counts) - min(counts) <= 1
+    assert "日期" in quiz_bank.by_id["H013"].correct_text
+    assert "修補" in quiz_bank.by_id["H015"].correct_text
 
 
 def test_all_twenty_vault_difficulty_combinations_can_finish(quiz_bank):

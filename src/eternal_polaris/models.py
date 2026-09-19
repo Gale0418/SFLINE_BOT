@@ -5,6 +5,9 @@ from enum import StrEnum
 
 
 class ScienceLabel(StrEnum):
+    CHAT = "chat"
+    GENERAL = "general"
+    UNCERTAIN = "uncertain"
     OBSERVED_VERIFIED = "observed_verified"
     THEORETICAL_UNREALIZED = "theoretical_unrealized"
     SCIENCE_FICTION = "science_fiction"
@@ -12,6 +15,9 @@ class ScienceLabel(StrEnum):
 
 
 LABEL_TITLES = {
+    ScienceLabel.CHAT: "日常聊天",
+    ScienceLabel.GENERAL: "一般知識",
+    ScienceLabel.UNCERTAIN: "尚待確認",
     ScienceLabel.OBSERVED_VERIFIED: "已觀測／已驗證",
     ScienceLabel.THEORETICAL_UNREALIZED: "理論上可描述但尚未實現",
     ScienceLabel.SCIENCE_FICTION: "科幻設定",

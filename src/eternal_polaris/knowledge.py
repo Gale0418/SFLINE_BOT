@@ -96,13 +96,13 @@ class KnowledgeBase:
 
     def validate_expected_shape(self) -> None:
         counts = Counter(card.label for card in self.cards)
-        expected = {
-            ScienceLabel.OBSERVED_VERIFIED: 8,
+        baseline = {
+            ScienceLabel.OBSERVED_VERIFIED: 58,
             ScienceLabel.THEORETICAL_UNREALIZED: 8,
-            ScienceLabel.SCIENCE_FICTION: 8,
+            ScienceLabel.SCIENCE_FICTION: 10,
         }
-        if len(self.cards) != 24 or counts != Counter(expected):
-            raise KnowledgeError("知識庫必須包含三類各 8 張、共 24 張知識卡")
+        if len(self.cards) < 76 or any(counts[label] < minimum for label, minimum in baseline.items()):
+            raise KnowledgeError("知識庫不得少於原始76張，且不可刪除既有分類基線")
 
     def prompt_context(self) -> str:
         rows = []
@@ -162,6 +162,10 @@ class KnowledgeBase:
         return None
 
     def validate_answer(self, answer: BotAnswer) -> BotAnswer:
+        if answer.label in (ScienceLabel.CHAT, ScienceLabel.GENERAL, ScienceLabel.UNCERTAIN):
+            if not answer.answer.strip() or len(answer.answer) > 700 or answer.source_ids:
+                raise KnowledgeError("無引用回答必須有簡短內容，且不得冒用知識卡來源")
+            return answer
         if answer.label is ScienceLabel.OUT_OF_SCOPE:
             if answer.source_ids:
                 raise KnowledgeError("超出範圍回答不得附來源")

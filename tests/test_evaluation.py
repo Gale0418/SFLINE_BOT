@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from eternal_polaris.evaluation import compute_metrics, load_questions
+from eternal_polaris.evaluation import compute_metrics, load_questions, run_online
+from eternal_polaris.models import BotAnswer, ScienceLabel
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -77,3 +78,40 @@ def test_out_of_scope_rows_do_not_count_as_manual_fact_scores():
     ]
 
     assert compute_metrics(rows)["manual_fact_accuracy"] is None
+
+
+def test_online_run_never_copies_reference_manual_score(monkeypatch, settings, knowledge):
+    class StubAnswerService:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def answer(self, question, _history):
+            if question == "失敗題":
+                raise TimeoutError("simulated timeout")
+            return BotAnswer(
+                ScienceLabel.OBSERVED_VERIFIED,
+                "測試回答",
+                ("ov001",),
+            )
+
+    monkeypatch.setattr("eternal_polaris.evaluation.OpenAIAnswerService", StubAnswerService)
+    rows = [
+        {
+            "id": "ok",
+            "question": "成功題",
+            "expected_label": "observed_verified",
+            "expected_source_id": "ov001",
+            "manual_fact_score": "1",
+        },
+        {
+            "id": "error",
+            "question": "失敗題",
+            "expected_label": "observed_verified",
+            "expected_source_id": "ov001",
+            "manual_fact_score": "1",
+        },
+    ]
+
+    records = run_online(rows, settings, knowledge)
+
+    assert [record["manual_fact_score"] for record in records] == [None, None]

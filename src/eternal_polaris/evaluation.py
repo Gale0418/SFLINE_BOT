@@ -121,7 +121,10 @@ def run_online(rows: list[dict[str, str]], settings: Settings, knowledge: Knowle
                     "error_category": None,
                     "answer_text": answer.answer,
                     "source_ids": list(answer.source_ids),
-                    "manual_fact_score": row["manual_fact_score"],
+                    # A source-row score describes the reference question, not
+                    # this newly generated answer. Human review must populate
+                    # the result record after the online run.
+                    "manual_fact_score": None,
                 }
             )
         except Exception as exc:
@@ -135,7 +138,7 @@ def run_online(rows: list[dict[str, str]], settings: Settings, knowledge: Knowle
                     "error_category": type(exc).__name__,
                     "answer_text": None,
                     "source_ids": [],
-                    "manual_fact_score": row["manual_fact_score"],
+                    "manual_fact_score": None,
                 }
             )
     return records

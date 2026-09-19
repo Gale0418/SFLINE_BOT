@@ -2,10 +2,10 @@
 
 ## 前置
 
-- [ ] `GET /health` 回傳 `status=ok` 與 `quiz_questions=96`。
+- [ ] `GET /health` 回傳 `status=ok` 與 `quiz_questions=300`；這只證明程序與題庫載入，不代表 AI provider ready。
 - [ ] LINE Developers Webhook Verify 成功。
 - [ ] ngrok 公開 URL 目前有效且結尾為 `/callback`。
-- [ ] OpenAI API 有額度；另準備暫時拔除 API Key／阻斷模型的離線功能測試。
+- [ ] 當日選定的 AI provider/model 已做單題 smoke test；另準備阻斷模型的離線功能測試。
 - [ ] 截圖不包含 access token、Channel Secret、完整 LINE ID 或私人通知。
 
 ## 五個必演場景
@@ -33,7 +33,7 @@
 
 ### 4. 離線核心
 
-- [ ] 暫時讓 OpenAI 回覆失敗。
+- [ ] 暫時讓目前選定的模型服務回覆失敗。
 - [ ] 「幫助」「挑戰」「試煉規則」仍可使用。
 - [ ] 試煉五題仍可完成。
 - [ ] 普通問答顯示安全的宇宙訊號備援文字，不出現 stack trace。
@@ -54,9 +54,9 @@
 | Q-03 | 答對 | 正解、解說、下一題 |  |  |  |  |
 | Q-04 | 答錯 | 糾正但不羞辱 |  |  |  |  |
 | Q-05 | 五題結算 | 分數、連勝、稱號 |  |  |  |  |
-| Q-06 | OpenAI 失敗 | Quiz 正常、QA 安全降級 |  |  |  |  |
+| Q-06 | 模型服務失敗 | Quiz 正常、QA 安全降級 |  |  |  |  |
 | Q-07 | 舊符文 | 拒絕重播 |  |  |  |  |
 
 ## 驗收誠信
 
-GitHub CI 成功不等於手機 E2E 成功；手機畫面成功也不等於 96 題全數經真人科學審稿。報告中必須把程式測試、題庫審查、模型線上評估與手機 Demo 分開列證據。
+GitHub CI 成功不等於手機 E2E 成功；手機畫面成功也不等於 300 題全數經真人科學審稿。報告中必須把程式測試、題庫審查、模型線上評估與手機 Demo 分開列證據。

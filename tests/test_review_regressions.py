@@ -28,7 +28,7 @@ class Gateway:
     def __init__(self):
         self.replies = []
 
-    def reply_text(self, token, text, quick_replies=()):
+    def reply_text(self, token, text, quick_replies=(), *, hero_filename=""):
         self.replies.append((token, text, tuple(quick_replies)))
 
 

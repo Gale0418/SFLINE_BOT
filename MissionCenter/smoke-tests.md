@@ -87,3 +87,67 @@
 - Date: 2026-09-01
 - Linked task ID: LB-004, LB-E5
 - Run type: live integration
+
+## ST-009｜Google key 本機 LINE 服務煙霧測試
+
+- What was tested: 使用 `D:\MyGame\OWO.TXT` 第 4 行的 Google key 啟動本機 LINE webhook，並實際呼叫 Google Gemini 回答。
+- How it was tested: 以程序限定環境變數設定 `AI_PROVIDER=google`、`GEMINI_MODEL=gemma-4-31b-it` 與模型逾時；未修改 `.env` 或輸出金鑰值。執行 `/health`、無簽章 `/callback`，以及一題模型煙霧測試。
+- Expected result: 設定載入成功；`/health` 回 HTTP 200；無簽章 webhook 回 HTTP 400；Google 回傳可通過本機 JSON／知識卡驗證。
+- Observed result: `provider=google`、模型回答 `label=out_of_scope` 且通過驗證；`/health` 回 `status=ok`、`quiz_questions=96`；無簽章 `/callback` 回 400；服務持續監聽 `127.0.0.1:5000`。
+- Result: Pass
+- Date: 2026-09-05
+- Linked task ID: LB-004, LB-005
+- Run type: live integration
+
+## ST-010｜LINE Webhook 開關與通道驗收
+
+- What was tested: 永恆北極星頻道、ngrok、LINE 官方 Webhook 測試及 Use webhook 開關。
+- How it was tested: 本機 `/health`；LINE bot info、設定／測試 Webhook API；Chrome 後台啟用 Use webhook 後以 GET endpoint 複核。
+- Expected result: health 正常、官方 test success=true、active=true。
+- Observed result: health=ok，quiz_questions=96；頻道名稱符合；更新200、測試200且success=true。原 active=false，開啟後 API 確認 active=true。
+- Result: Pass（通道層）；手機真實收發仍待確認，不等同完整 E2E。
+- Date: 2026-09-08
+- Linked task ID: LB-005
+- Run type: live integration
+
+## ST-011｜Google 30 題生成評估
+
+- How it was tested: 程序設定 AI_PROVIDER=google、MODEL_TIMEOUT_SECONDS=5，執行 `python -m eternal_polaris.evaluation --online --output results/google-evaluation-20260908.json`。
+- Expected result: 30 題均產生可驗證回答，輸出有效指標。
+- Observed result: invalid，30 題錯誤（26 HTTPStatusError、4 ReadTimeout）。最小 generateContent 請求另回 HTTP500 INTERNAL；模型清單 HTTP200 且包含 gemma-4-31b-it。
+- Result: Fail。零值分類指標是失敗占位結果，不得拿來當模型準確率。既有 2026-09-05 單題成功不能替代本次失敗。
+- Date: 2026-09-08
+- Linked task ID: LB-004, LB-E5
+- Run type: live integration
+
+## ST-012｜離線回歸與可重複啟動
+
+- How it was tested: `python -m pytest`；PowerShell Parser 語法檢查；啟動腳本缺少來源、行號超界失敗檢查；以假值替代 Get-Content 驗證單行與空白行前置邏輯；git diff --check。
+- Expected result: 測試通過，key 不輸出不寫入 .env，無效參數安全拒絕。
+- Observed result: 79 passed in 1.37s；語法、參數檢查、單行與空白行檢查通過；diff check 通過。新啟動腳本尚未用來替換運行中程序。`黑洞照片是真的嗎？` 本地匹配 ov001、observed_verified。
+- Result: Pass
+- Date: 2026-09-08
+- Linked task ID: LB-001, LB-002, LB-003, LB-E4
+- Run type: automated + local smoke
+
+## ST-013｜150 題發布契約與報告一致性
+
+- What was tested: 150 題／18 主題／50 張卡工作樹、26B Demo 預設、Release certification、完整自動測試與離線評估。
+- How it was tested: `pip check`、`compileall`、126 項 pytest 與 branch coverage、離線 evaluator、`git diff --check`；另從 workflow 擷取原始 certification Python，在本機以忽略且未追蹤的 `.env` 條件分開驗證。
+- Expected result: 新資料契約與發布檢查一致；原始 96 題、20 題科學史及 34 題趣味科普均被辨識；測試與 coverage gate 通過。
+- Observed result: 126 passed，branch coverage 79.16%；Release certification 輸出 questions=150、topics=18；`.env` 為 ignored 且未追蹤；`pip check`、compile、離線評估與 diff check exit 0。未呼叫真實模型 API，手機 E2E 與有效 30 題線上評估仍待完成。
+- Result: Pass（本機發布契約）；GitHub 同 SHA CI 與手機證據仍是交付 blocker。
+- Date: 2026-09-13
+- Linked task ID: LB-001, LB-E3, LB-E6
+- Run type: automated + local certification
+
+## ST-014｜1236 卡／300 題封版與 CodeRabbit 修正驗證
+
+- What was tested: 1236 張知識卡、300 題／24 主題、NAS Compose 路徑與映像健康檢查、線上評估人工分數邊界、最新 v9 簡報驗證器，以及兩輪 CodeRabbit finding 的最小修正。
+- How it was tested: `pip check`、`compileall`、`pytest --cov=eternal_polaris --cov-branch`；從 release workflow 擷取 certification Python 執行，另檢查 `.env` ignored 且未追蹤；執行 `node scripts/verify_project_presentation.mjs` 與 `git diff --check`。
+- Expected result: 程式、資料契約、部署與報告數量一致；預填人工分數不會進入新生成回答；PPT v9 可匯入並驗證 11 頁；無 diff 格式錯誤。
+- Observed result: 1155 passed，branch coverage 81.99%；Release certification 輸出 questions=300、topics=24；PPT 驗證輸出 slides=11、totalSpeechCharacters=6926；比鄰星換算 6620.4 年；`.env` ignored=true、tracked=false；diff check exit 0。
+- Result: Pass（本機發布契約與外部審查修正）；同一 SHA 的 GitHub CI、手機實機 E2E 與有效 30 題線上模型評估仍須分開取得證據。
+- Date: 2026-09-19
+- Linked task ID: LB-001, LB-003, LB-E3, LB-E5, LB-E6
+- Run type: automated + local certification + external review
