@@ -1,58 +1,100 @@
 """Generate the deterministic 2500×843 Rich Menu artwork."""
+import os
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 OUTPUT = Path("assets/line/rich-menu.png")
+BACKGROUND = Path("assets/line/rich-menu-cosmic-background.png")
 FONT = Path("C:/Windows/Fonts/msjh.ttc")
 WIDTH, HEIGHT = 2500, 843
 CELLS = (
-    ("觀", "觀星入門", "從肉眼可見的星空開始"),
-    ("問", "問守門人", "看看我能回答哪些問題"),
-    ("學", "四座寶庫", "選路線循序學習"),
-    ("試", "星之試煉", "挑戰五道知識星門"),
-    ("旅", "我的旅程", "查看解鎖與最高分"),
-    ("助", "功能說明", "回到所有功能入口"),
+    ("自由提問", "問知識、想法與功能", "#FFD84D", "#FFF1A8"),
+    ("引導學習", "四座寶庫循序帶你學", "#62E8FF", "#C6F7FF"),
+    ("星之試煉", "挑戰五道知識星門", "#FF72D2", "#FFD0EE"),
+    ("我的旅程", "查看進度與最高分", "#79F2B2", "#D0FFE6"),
 )
 
 
-def centered(draw, box, text, font, fill):
+def centered(draw, box, text, font, fill, *, stroke_width=0, stroke_fill=None):
     left, top, right, bottom = box
     bounds = draw.textbbox((0, 0), text, font=font)
     width, height = bounds[2] - bounds[0], bounds[3] - bounds[1]
-    draw.text(((left + right - width) / 2, (top + bottom - height) / 2 - bounds[1]), text, font=font, fill=fill)
+    draw.text(
+        ((left + right - width) / 2, (top + bottom - height) / 2 - bounds[1]),
+        text,
+        font=font,
+        fill=fill,
+        stroke_width=stroke_width,
+        stroke_fill=stroke_fill,
+    )
+
+
+def resolve_font() -> Path:
+    candidates = (
+        Path(os.environ["RICH_MENU_FONT"]) if os.environ.get("RICH_MENU_FONT") else None,
+        FONT,
+        Path("/System/Library/Fonts/STHeiti Medium.ttc"),
+        Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+    )
+    for candidate in candidates:
+        if candidate and candidate.is_file():
+            return candidate
+    raise FileNotFoundError("找不到支援中文的字型，請設定 RICH_MENU_FONT")
 
 
 def main():
-    image = Image.new("RGB", (WIDTH, HEIGHT), "#EAF6FF")
-    pixels = image.load()
-    for y in range(HEIGHT):
-        ratio = y / max(HEIGHT - 1, 1)
-        for x in range(WIDTH):
-            glow = max(0.0, 1.0 - abs(x / WIDTH - 0.5) * 1.6)
-            pixels[x, y] = (
-                int(232 - 12 * ratio), int(246 - 8 * ratio + 3 * glow), int(255 - 4 * ratio)
-            )
+    if not BACKGROUND.is_file():
+        raise FileNotFoundError(f"找不到 Rich Menu 科幻底圖：{BACKGROUND}")
+    image = Image.open(BACKGROUND).convert("RGB").resize(
+        (WIDTH, HEIGHT), Image.Resampling.LANCZOS
+    )
     draw = ImageDraw.Draw(image, "RGBA")
-    title_font = ImageFont.truetype(str(FONT), 68)
-    subtitle_font = ImageFont.truetype(str(FONT), 31)
-    icon_font = ImageFont.truetype(str(FONT), 54)
-    cell_widths, row_heights = (834, 833, 833), (421, 422)
+    font_path = resolve_font()
+    title_font = ImageFont.truetype(str(font_path), 128)
+    subtitle_font = ImageFont.truetype(str(font_path), 80)
+    cell_widths, row_heights = (1250, 1250), (421, 422)
     index, y = 0, 0
     for row_height in row_heights:
         x = 0
         for cell_width in cell_widths:
-            icon, title, subtitle = CELLS[index]
+            title, subtitle, title_color, subtitle_color = CELLS[index]
             inset = (x + 18, y + 18, x + cell_width - 18, y + row_height - 18)
-            draw.rounded_rectangle(inset, radius=34, fill=(249, 253, 255, 235), outline=(87, 141, 177, 220), width=3)
-            centered(draw, (x, y + 38, x + cell_width, y + 138), icon, icon_font, "#5C88A8")
-            centered(draw, (x, y + 137, x + cell_width, y + 257), title, title_font, "#17324D")
-            centered(draw, (x + 30, y + 260, x + cell_width - 30, y + 345), subtitle, subtitle_font, "#55758D")
+            draw.rounded_rectangle(
+                inset,
+                radius=34,
+                fill=(4, 17, 51, 158),
+                outline=title_color,
+                width=4,
+            )
+            centered(
+                draw,
+                (x, y + 46, x + cell_width, y + 214),
+                title,
+                title_font,
+                title_color,
+                stroke_width=2,
+                stroke_fill="#07152E",
+            )
+            centered(
+                draw,
+                (x + 44, y + 208, x + cell_width - 44, y + 372),
+                subtitle,
+                subtitle_font,
+                subtitle_color,
+                stroke_width=1,
+                stroke_fill="#07152E",
+            )
             x += cell_width
             index += 1
         y += row_height
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    image.save(OUTPUT, "PNG", optimize=True)
+    optimized = image.quantize(
+        colors=256,
+        method=Image.Quantize.MEDIANCUT,
+        dither=Image.Dither.FLOYDSTEINBERG,
+    )
+    optimized.save(OUTPUT, "PNG", optimize=True)
     print(f"{OUTPUT} ({OUTPUT.stat().st_size} bytes)")
 
 

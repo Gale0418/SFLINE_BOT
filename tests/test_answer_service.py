@@ -132,6 +132,7 @@ def test_gemma_4_31b_uses_documented_google_contract_without_schema_gamble(knowl
     assert "永恆北極星" in client.body["systemInstruction"]["parts"][0]["text"]
     prompt_text = client.body["contents"][0]["parts"][0]["text"]
     assert "只輸出一個 JSON object" in prompt_text
+    assert "label 必須和至少一張引用卡片" in prompt_text
     assert client.response.raise_calls == 1
 
 
@@ -278,6 +279,24 @@ def test_provider_prompt_masks_extended_identity_and_location_values(knowledge):
     assert "[日期已遮罩]" in prompt
     assert "[地址已遮罩]" in prompt
     assert "[付款卡號已遮罩]" in prompt
+
+
+def test_provider_prompt_masks_unlabeled_grouped_payment_card(knowledge):
+    client = FakeGoogleClient({"label": "chat", "answer": "已遮罩。", "source_ids": []})
+    service = OpenAIAnswerService("test", "gemma-4-26b-a4b-it", knowledge, client=client)
+    service.answer("請記住 4111 1111 1111 1111", ())
+    prompt = client.body["contents"][0]["parts"][0]["text"]
+    assert "4111 1111 1111 1111" not in prompt
+    assert "[付款卡號已遮罩]" in prompt
+
+
+def test_provider_prompt_preserves_invalid_grouped_number(knowledge):
+    client = FakeGoogleClient({"label": "chat", "answer": "正常。", "source_ids": []})
+    service = OpenAIAnswerService("test", "gemma-4-26b-a4b-it", knowledge, client=client)
+    question = "編號是 1234 5678 9012 3456"
+    service.answer(question, ())
+    prompt = client.body["contents"][0]["parts"][0]["text"]
+    assert question in prompt
 
 
 @pytest.mark.parametrize(

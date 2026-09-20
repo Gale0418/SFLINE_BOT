@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
-from eternal_polaris.evaluation import compute_metrics, load_questions, run_online
+import pytest
+
+from eternal_polaris.evaluation import (
+    _file_sha256,
+    _validate_resume_report,
+    compute_metrics,
+    load_questions,
+    run_online,
+)
 from eternal_polaris.models import BotAnswer, ScienceLabel
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -10,6 +19,37 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_eval_dataset_shape():
     assert len(load_questions(ROOT / "data" / "eval_questions.csv")) == 30
+
+
+def test_resume_report_requires_matching_input_hashes(tmp_path: Path):
+    questions = tmp_path / "questions.csv"
+    knowledge = tmp_path / "knowledge.json"
+    questions.write_text("id,question\nq1,一\n", encoding="utf-8")
+    knowledge.write_text('{"cards": []}', encoding="utf-8")
+    report = {
+        "model": "model-a",
+        "provider": "google",
+        "questions_sha256": _file_sha256(questions),
+        "knowledge_sha256": _file_sha256(knowledge),
+    }
+
+    assert _validate_resume_report(
+        report,
+        model="model-a",
+        provider="google",
+        questions_sha256=_file_sha256(questions),
+        knowledge_sha256=_file_sha256(knowledge),
+    ) is report
+
+    questions.write_text("id,question\nq1,已修改\n", encoding="utf-8")
+    with pytest.raises(SystemExit, match="評估題"):
+        _validate_resume_report(
+            report,
+            model="model-a",
+            provider="google",
+            questions_sha256=_file_sha256(questions),
+            knowledge_sha256=_file_sha256(knowledge),
+        )
 
 
 def test_metrics_perfect_predictions():
@@ -114,3 +154,84 @@ def test_online_run_never_copies_reference_manual_score(monkeypatch, settings, k
     records = run_online(rows, settings, knowledge)
 
     assert [record["manual_fact_score"] for record in records] == [None, None]
+
+
+def test_online_run_retries_invalid_json_once(monkeypatch, settings, knowledge):
+    class StubAnswerService:
+        calls = 0
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def answer(self, _question, _history):
+            self.__class__.calls += 1
+            if self.calls == 1:
+                raise json.JSONDecodeError("truncated", "{", 1)
+            return BotAnswer(ScienceLabel.GENERAL, "簡短回答", ())
+
+    monkeypatch.setattr("eternal_polaris.evaluation.OpenAIAnswerService", StubAnswerService)
+    records = run_online(
+        [{"id": "retry", "question": "Python 語法", "expected_label": "out_of_scope", "expected_source_id": ""}],
+        settings,
+        knowledge,
+        max_attempts=2,
+    )
+
+    assert records[0]["error_category"] is None
+    assert records[0]["attempts"] == 2
+
+
+def test_online_run_applies_request_spacing(monkeypatch, settings, knowledge):
+    sleeps = []
+
+    class StubAnswerService:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def answer(self, _question, _history):
+            return BotAnswer(ScienceLabel.GENERAL, "簡短回答", ())
+
+    monkeypatch.setattr("eternal_polaris.evaluation.OpenAIAnswerService", StubAnswerService)
+    monkeypatch.setattr("eternal_polaris.evaluation.time.sleep", sleeps.append)
+    run_online(
+        [
+            {"id": "one", "question": "一", "expected_label": "out_of_scope", "expected_source_id": ""},
+            {"id": "two", "question": "二", "expected_label": "out_of_scope", "expected_source_id": ""},
+        ],
+        settings,
+        knowledge,
+        min_request_interval_seconds=2.1,
+    )
+
+    assert sleeps and sleeps[0] > 2.0
+
+
+def test_rate_limit_retry_uses_sixty_second_backoff(monkeypatch, settings, knowledge):
+    sleeps = []
+
+    class StubAnswerService:
+        calls = 0
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def answer(self, _question, _history):
+            self.__class__.calls += 1
+            if self.calls == 1:
+                request = __import__("httpx").Request("POST", "https://example.invalid")
+                response = __import__("httpx").Response(429, request=request)
+                raise __import__("httpx").HTTPStatusError("limited", request=request, response=response)
+            return BotAnswer(ScienceLabel.GENERAL, "簡短回答", ())
+
+    monkeypatch.setattr("eternal_polaris.evaluation.OpenAIAnswerService", StubAnswerService)
+    monkeypatch.setattr("eternal_polaris.evaluation.time.sleep", sleeps.append)
+    records = run_online(
+        [{"id": "limited", "question": "一", "expected_label": "out_of_scope", "expected_source_id": ""}],
+        settings,
+        knowledge,
+        min_request_interval_seconds=2.1,
+        max_attempts=2,
+    )
+
+    assert records[0]["error_category"] is None
+    assert any(delay >= 59.9 for delay in sleeps)

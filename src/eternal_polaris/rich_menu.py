@@ -11,18 +11,16 @@ from dotenv import load_dotenv
 
 WIDTH, HEIGHT = 2500, 843
 BUTTONS = (
-    ("觀星入門", "星等是什麼？"),
-    ("問守門人", "你會什麼？"),
-    ("四座寶庫", "學習"),
+    ("自由提問", "你會什麼？"),
+    ("引導學習", "學習"),
     ("星之試煉", "挑戰"),
     ("我的旅程", "學習進度"),
-    ("功能說明", "幫助"),
 )
 
 
 def build_rich_menu_object() -> dict:
-    """Return one 3×2 menu whose six actions already exist in the bot."""
-    widths = (834, 833, 833)
+    """Return one 2×2 menu whose four actions already exist in the bot."""
+    widths = (1250, 1250)
     heights = (421, 422)
     areas = []
     y = 0

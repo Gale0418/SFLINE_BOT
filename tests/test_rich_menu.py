@@ -11,13 +11,16 @@ from eternal_polaris.rich_menu import (
 )
 
 
-def test_rich_menu_uses_six_existing_bot_commands_without_gaps():
+def test_rich_menu_uses_four_existing_bot_commands_without_gaps():
     spec = build_rich_menu_object()
     assert spec["size"] == {"width": WIDTH, "height": HEIGHT}
-    assert len(spec["areas"]) == len(BUTTONS) == 6
+    assert len(spec["areas"]) == len(BUTTONS) == 4
+    assert [area["action"]["label"] for area in spec["areas"]] == [
+        "自由提問", "引導學習", "星之試煉", "我的旅程",
+    ]
     assert [area["action"]["text"] for area in spec["areas"]] == [message for _, message in BUTTONS]
-    assert sum(area["bounds"]["width"] for area in spec["areas"][:3]) == WIDTH
-    assert spec["areas"][3]["bounds"]["y"] + spec["areas"][3]["bounds"]["height"] == HEIGHT
+    assert sum(area["bounds"]["width"] for area in spec["areas"][:2]) == WIDTH
+    assert spec["areas"][2]["bounds"]["y"] + spec["areas"][2]["bounds"]["height"] == HEIGHT
 
 
 def test_installer_calls_official_sequence(tmp_path: Path):

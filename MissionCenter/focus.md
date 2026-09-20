@@ -1,6 +1,6 @@
 <!-- Generated materialized view. Do not edit directly; rebuild from canonical MissionCenter files. -->
 <!-- Deprecated compatibility view: focus.md is generated from tasks.md only and must never be edited or treated as a second lifecycle source. -->
-<!-- mission-center-derived schema=1.0 fingerprint-format=sha256-v2-lf source-fingerprint=003b5ee214fc7439d66bd8cc02ce2e8d9ecb841aed16b8f0695fde60dfd13df1 -->
+<!-- mission-center-derived schema=1.0 fingerprint-format=sha256-v2-lf source-fingerprint=446c2c88847289e1b73c30a213657df522b02c46d16d7d3378ac6dc4d7cd841a -->
 # P0 Focus
 
 - Source of truth: `tasks.md`
@@ -14,4 +14,4 @@
 | LB-E2 | LINE 真實端到端流程 | In Progress | 完成 webhook 與真實 LINE 回覆 | LB-E1 | 手機 LINE 收到回覆 |
 | LB-003 | 實作健康檢查與 LINE webhook | Review | 完成 `/health`、簽章驗證與事件處理 | LB-001 | Flask webhook 測試通過 |
 | LB-004 | 接通 OpenAI 結構化回答 | Review | 串接 Responses API 與安全降級 | LB-003 | Mock 與選配線上煙霧測試通過 |
-| LB-005 | 完成 ngrok 與手機 LINE 垂直切片 | In Progress | 手機驗收新版自然閒聊、三輪追問與科學回答；後續重跑正式評估 | LB-002, LB-003, LB-004 | 手機實際問答與試煉截圖，Google 路徑成功 |
+| LB-005 | 完成 ngrok 與手機 LINE 垂直切片 | Review | 由評審依 ST-019 與 ST-021 複核手機四格、NAS 健康與 Google 30 題證據 | LB-002, LB-003, LB-004 | 手機實際問答、試煉與四格 Menu 截圖，Google 路徑成功 |

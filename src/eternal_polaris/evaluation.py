@@ -2,17 +2,20 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import statistics
 import time
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
+
+import httpx
 
 from .answer_service import OpenAIAnswerService
 from .config import Settings
-from .knowledge import KnowledgeBase
+from .knowledge import KnowledgeBase, KnowledgeError
 from .models import ScienceLabel
 
 IN_SCOPE_LABELS = (
@@ -20,6 +23,34 @@ IN_SCOPE_LABELS = (
     ScienceLabel.THEORETICAL_UNREALIZED,
     ScienceLabel.SCIENCE_FICTION,
 )
+GOOGLE_MIN_REQUEST_INTERVAL_SECONDS = 2.1
+DEFAULT_MAX_ATTEMPTS = 2
+RATE_LIMIT_BACKOFF_SECONDS = 60.0
+
+
+def _file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _validate_resume_report(
+    previous: object,
+    *,
+    model: str,
+    provider: str,
+    questions_sha256: str,
+    knowledge_sha256: str,
+) -> dict[str, object]:
+    if not isinstance(previous, dict):
+        raise SystemExit("續跑報告格式無效")
+    if previous.get("model") != model:
+        raise SystemExit("續跑報告的 model 與目前設定不一致")
+    if previous.get("provider") != provider:
+        raise SystemExit("續跑報告的 provider 與目前設定不一致")
+    if previous.get("questions_sha256") != questions_sha256:
+        raise SystemExit("續跑報告的評估題與目前輸入不一致")
+    if previous.get("knowledge_sha256") != knowledge_sha256:
+        raise SystemExit("續跑報告的知識資料與目前輸入不一致")
+    return previous
 
 
 def load_questions(path: Path) -> list[dict[str, str]]:
@@ -94,7 +125,47 @@ def compute_metrics(records: Iterable[dict[str, object]]) -> dict[str, object]:
     }
 
 
-def run_online(rows: list[dict[str, str]], settings: Settings, knowledge: KnowledgeBase) -> list[dict[str, object]]:
+def _is_retryable(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code == 429 or exc.response.status_code >= 500
+    return isinstance(
+        exc,
+        (httpx.TimeoutException, TimeoutError, json.JSONDecodeError, KnowledgeError, TypeError, ValueError),
+    )
+
+
+def _safe_error_detail(exc: Exception) -> str:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"HTTP {exc.response.status_code}"
+    if isinstance(exc, (httpx.TimeoutException, TimeoutError)):
+        return "request timeout"
+    return type(exc).__name__
+
+
+def _retry_backoff_seconds(exc: Exception, min_request_interval_seconds: float) -> float:
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 429:
+        raw = exc.response.headers.get("retry-after", "").strip()
+        try:
+            retry_after = float(raw)
+        except ValueError:
+            retry_after = RATE_LIMIT_BACKOFF_SECONDS
+        return max(min_request_interval_seconds, retry_after, RATE_LIMIT_BACKOFF_SECONDS)
+    return min_request_interval_seconds
+
+
+def run_online(
+    rows: list[dict[str, str]],
+    settings: Settings,
+    knowledge: KnowledgeBase,
+    *,
+    min_request_interval_seconds: float = 0.0,
+    max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+    progress_callback: Callable[[dict[str, object], int, int], None] | None = None,
+) -> list[dict[str, object]]:
+    if min_request_interval_seconds < 0:
+        raise ValueError("min_request_interval_seconds 不可為負數")
+    if not 1 <= max_attempts <= 3:
+        raise ValueError("max_attempts 必須介於 1 與 3")
     service = OpenAIAnswerService(
         settings.openai_api_key,
         settings.openai_model,
@@ -102,13 +173,18 @@ def run_online(rows: list[dict[str, str]], settings: Settings, knowledge: Knowle
         settings.openai_timeout_seconds,
     )
     records: list[dict[str, object]] = []
+    next_request_at = time.monotonic()
     for row in rows:
+        delay = next_request_at - time.monotonic()
+        if delay > 0:
+            time.sleep(delay)
         started = time.monotonic()
-        try:
-            answer = service.answer(row["question"], ())
-            latency = int((time.monotonic() - started) * 1000)
-            records.append(
-                {
+        for attempt in range(1, max_attempts + 1):
+            request_started = time.monotonic()
+            next_request_at = request_started + min_request_interval_seconds
+            try:
+                answer = service.answer(row["question"], ())
+                record = {
                     "id": row["id"],
                     "expected_label": row["expected_label"],
                     "predicted_label": answer.label.value,
@@ -116,8 +192,10 @@ def run_online(rows: list[dict[str, str]], settings: Settings, knowledge: Knowle
                         not row["expected_source_id"]
                         or row["expected_source_id"] in answer.source_ids
                     ),
-                    "latency_ms": latency,
+                    "latency_ms": int((time.monotonic() - started) * 1000),
+                    "attempts": attempt,
                     "error_category": None,
+                    "error_detail": None,
                     "answer_text": answer.answer,
                     "source_ids": list(answer.source_ids),
                     # A source-row score describes the reference question, not
@@ -125,21 +203,36 @@ def run_online(rows: list[dict[str, str]], settings: Settings, knowledge: Knowle
                     # the result record after the online run.
                     "manual_fact_score": None,
                 }
-            )
-        except Exception as exc:  # noqa: BLE001 - every failed sample belongs in the report
-            records.append(
-                {
-                    "id": row["id"],
-                    "expected_label": row["expected_label"],
-                    "predicted_label": "error",
-                    "source_match": False,
-                    "latency_ms": int((time.monotonic() - started) * 1000),
-                    "error_category": type(exc).__name__,
-                    "answer_text": None,
-                    "source_ids": [],
-                    "manual_fact_score": None,
-                }
-            )
+                records.append(record)
+                if progress_callback is not None:
+                    progress_callback(record, len(records), len(rows))
+                break
+            except Exception as exc:  # noqa: BLE001 - every failed sample belongs in the report
+                if attempt >= max_attempts or not _is_retryable(exc):
+                    record = {
+                        "id": row["id"],
+                        "expected_label": row["expected_label"],
+                        "predicted_label": "error",
+                        "source_match": False,
+                        "latency_ms": int((time.monotonic() - started) * 1000),
+                        "attempts": attempt,
+                        "error_category": type(exc).__name__,
+                        "error_detail": _safe_error_detail(exc),
+                        "answer_text": None,
+                        "source_ids": [],
+                        "manual_fact_score": None,
+                    }
+                    records.append(record)
+                    if progress_callback is not None:
+                        progress_callback(record, len(records), len(rows))
+                    break
+                next_request_at = max(
+                    next_request_at,
+                    time.monotonic() + _retry_backoff_seconds(exc, min_request_interval_seconds),
+                )
+                delay = next_request_at - time.monotonic()
+                if delay > 0:
+                    time.sleep(delay)
     return records
 
 
@@ -149,20 +242,80 @@ def main() -> None:
     parser.add_argument("--knowledge", type=Path, default=Path("data/knowledge_cards.json"))
     parser.add_argument("--output", type=Path, default=Path("results/evaluation.json"))
     parser.add_argument("--online", action="store_true", help="實際呼叫 OpenAI API")
+    parser.add_argument(
+        "--min-request-interval-seconds",
+        type=float,
+        default=None,
+        help="模型請求起點的最小間隔；Google 預設 2.1 秒以低於每分鐘 30 次限制",
+    )
+    parser.add_argument("--max-attempts", type=int, default=DEFAULT_MAX_ATTEMPTS)
+    parser.add_argument(
+        "--resume-from",
+        type=Path,
+        help="沿用同 provider／model 舊報告中的成功記錄，只重試失敗題",
+    )
     args = parser.parse_args()
 
     rows = load_questions(args.questions)
     knowledge = KnowledgeBase.load(args.knowledge)
+    questions_sha256 = _file_sha256(args.questions)
+    knowledge_sha256 = _file_sha256(args.knowledge)
     if not args.online:
         print(f"資料驗證完成：{len(knowledge.cards)} 張知識卡、{len(rows)} 題評估題。")
         print("未加 --online，因此沒有呼叫 OpenAI，也沒有產生虛構指標。")
         return
 
     settings = Settings.from_env()
-    records = run_online(rows, settings, knowledge)
+    min_interval = args.min_request_interval_seconds
+    if min_interval is None:
+        min_interval = GOOGLE_MIN_REQUEST_INTERVAL_SECONDS if settings.ai_provider == "google" else 0.0
+    reused_by_id: dict[str, dict[str, object]] = {}
+    if args.resume_from is not None:
+        previous = _validate_resume_report(
+            json.loads(args.resume_from.read_text(encoding="utf-8")),
+            model=settings.openai_model,
+            provider=settings.ai_provider,
+            questions_sha256=questions_sha256,
+            knowledge_sha256=knowledge_sha256,
+        )
+        valid_ids = {row["id"] for row in rows}
+        reused_by_id = {
+            str(record["id"]): record
+            for record in previous.get("records", [])
+            if str(record.get("id", "")) in valid_ids and not record.get("error_category")
+        }
+
+    pending_rows = [row for row in rows if row["id"] not in reused_by_id]
+    reused_count = len(reused_by_id)
+
+    def show_progress(record: dict[str, object], completed: int, pending_total: int) -> None:
+        state = record.get("error_category") or record.get("predicted_label")
+        print(
+            f"[{reused_count + completed}/{reused_count + pending_total}] "
+            f"{record['id']} attempts={record.get('attempts')} result={state}",
+            flush=True,
+        )
+
+    new_records = run_online(
+        pending_rows,
+        settings,
+        knowledge,
+        min_request_interval_seconds=min_interval,
+        max_attempts=args.max_attempts,
+        progress_callback=show_progress,
+    )
+    records_by_id = {**reused_by_id, **{str(record["id"]): record for record in new_records}}
+    records = [records_by_id[row["id"]] for row in rows]
     error_count = sum(record["predicted_label"] == "error" for record in records)
     report = {
         "model": settings.openai_model,
+        "provider": settings.ai_provider,
+        "questions_sha256": questions_sha256,
+        "knowledge_sha256": knowledge_sha256,
+        "min_request_interval_seconds": min_interval,
+        "max_attempts": args.max_attempts,
+        "resumed_from": str(args.resume_from) if args.resume_from is not None else None,
+        "reused_record_count": reused_count,
         "run_status": "valid" if error_count == 0 else "invalid",
         "error_count": error_count,
         "metrics": compute_metrics(records),

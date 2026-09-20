@@ -23,3 +23,9 @@ build/
 logs/
 results/
 output/mission-center-assets/
+
+# Local presentation deliverables may contain personal presenter information.
+deliverables/
+assets/report/
+scripts/build_project_presentation_v*.mjs
+docs/presentation-*/

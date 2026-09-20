@@ -173,3 +173,71 @@
 - Date: 2026-09-20
 - Linked task ID: LB-003, LB-005, LB-E3, LB-E4, LB-E5, LB-006
 - Run type: automated + adversarial review + external code review
+
+## ST-017｜iPhone 鏡像 LINE 端到端與 Rich Menu 驗收
+
+- What was tested: 手機 LINE 功能導覽、三輪自然聊天上下文、科學回答分類與來源、星之試煉入口／選庫／難度／作答／退出，以及 3×2 Rich Menu 實際顯示與點擊目的地。
+- How it was tested: 透過 macOS iPhone 鏡像操作 LINE；中文測試訊息以剪貼簿貼入。依序送出功能導覽、三輪上台緊張／忘詞追問、「為什麼星星會閃爍，行星通常比較不會？」，再進入星海之庫見習試煉，作答 Apophis 題 C 後退出。另實際點擊「我的旅程」、「觀星入門」、「問守門人」與「功能說明」。
+- Expected result: 手機可完成真實收發；聊天保留最近上下文且不冒用科學來源；科學回答顯示分類與可追溯來源；試煉可得分、進入下一題並退出；Rich Menu 無死入口且手機可讀。
+- Observed result: 功能導覽正常；三輪聊天持續理解「上台忘詞」並給出救場句型；星星閃爍題顯示「已觀測／已驗證」與 NASA Science 來源；Apophis 題選 C 得分 1/1，進度 1/5 並可正常退出。Rich Menu 六個目的地皆可用，但實機字級偏小，且「問守門人」與「功能說明」都導向同一份功能導覽，屬重複入口。
+- Result: Pass（功能 E2E）／UX follow-up（建議收旂為 2×2 四格：問守門人、四座寶庫、星之試煉、我的旅程）。不代表 30 題線上模型評估或 NAS 真機部署通過。
+- Date: 2026-09-20
+- Linked task ID: LB-005, LB-E2
+- Run type: manual iPhone E2E
+
+## ST-018｜2×2 四格 Rich Menu 發布與 NAS 同步
+
+- What was tested: 六格 Rich Menu 收旂為四格後的圖片、點擊區、現有指令對應、LINE 官方帳號預設選單、NAS 原始碼同步與對外健康端點。
+- How it was tested: 重新生成 2500×843 PNG；執行 Rich Menu 專屬 pytest 與完整 pytest；透過 LINE Messaging API 驗證預設 `richMenuId`、四個區域與訊息文字，並下載遠端圖片比對 SHA-256；將選單原始碼、產圖腳本與 PNG 同步至 `/volume1/docker/eternal-polaris/app`，後比對雜湊；呼叫固定 ngrok `/health`。
+- Expected result: 選單只有「問守門人」、「四座寶庫」、「星之試煉」、「我的旅程」四格；官方預設與本機圖片完全一致；NAS Bot 仍健康；手機重載後顯示四格並可點擊。
+- Observed result: PNG 92,460 bytes；Rich Menu 專屬測試 2/2 與完整 pytest exit 0；Impeccable detector 0 finding。LINE 預設 ID 為 `richmenu-e88328e4d841d1c17be0400614d79b4e`，4 個區域皆為 1250 寬，遠端與本機 PNG SHA-256 同為 `f159968e601a903abf51903406d0de31d07e3dae79d7f6f5b63e1d5cd9544e5a`。NAS 三份檔案雜湊一致，公開 `/health` 回 `status=ok`、`quiz_questions=300`。LINE iPhone 用戶端仍顯示舊六格快取，待用戶端重新取得預設選單後補做四格點擊驗收。
+- Result: Pass（本機、LINE 供應者與 NAS 同步）／Pending（iPhone 快取刷新與四格點擊）。
+- Date: 2026-09-20
+- Linked task ID: LB-005, LB-E2
+- Run type: automated + live provider + NAS sync + manual iPhone inspection
+
+## ST-019｜科幻彩色大字 Rich Menu 與四格手機實點
+
+- What was tested: AI 生成的 2×2 外星科幻底圖、程式疊字可讀性、手機約 16px 主標／10px 副標、黃／青／粉紫／薄荷綠四格配色、「自由提問」與「引導學習」命名、四個透明點擊區、LINE 預設選單、NAS 檔案同步與公開健康端點。
+- How it was tested: 生成並視覺檢查 2500×843 PNG；執行 Rich Menu 專屬 pytest、compileall、圖片尺寸／1 MB 限制檢查；透過 LINE Messaging API 回讀預設選單與遠端圖片 SHA-256；將產圖腳本、底圖、最終 PNG 與選單定義同步至 NAS 後比對 SHA-256；呼叫固定 ngrok `/health`；以 iPhone 鏡像檢查客戶端。
+- Expected result: 手機顯示鮮豔科幻四格；「自由提問」與「引導學習」清楚可見；主副標達目標尺寸；四格分別送出 `你會什麼？`、`學習`、`挑戰`、`學習進度` 並收到對應回覆；NAS Bot 維持健康。
+- Observed result: 專屬測試 2/2、compileall、Impeccable type detector 與圖片限制檢查通過；最終 PNG 958,331 bytes。LINE 預設 ID 為 `richmenu-7d56cd7dbdfd50ecc3c9793e9fd4ae30`，遠端與本機 SHA-256 同為 `f6ee51dab81884b6ce3dd808b8a916c12691f50214afce7a4c0f3159ddff9f7f`，四個標籤與動作文字回讀正確。NAS 檔案雜湊一致，公開 `/health` 回 `status=ok`、`quiz_questions=300`。iPhone 完整重載後已顯示最終彩色四格；實點「自由提問」收到功能導覽、「引導學習」收到四座寶庫卡、「星之試煉」收到試煉入口、「我的旅程」收到學習地圖。
+- Result: Pass（圖片、本機測試、LINE 供應者、NAS 同步與 iPhone 四格實點）。
+- Date: 2026-09-20
+- Linked task ID: LB-005, LB-E2
+- Run type: image generation + automated + live provider + NAS sync + manual iPhone inspection
+
+## ST-020｜OpenAI 30 題線上評估與逐題人工事實核對
+
+- What was tested: `data/eval_questions.csv` 的 30 題自由問答分類集，以 OpenAI `gpt-5.6-luna` 真實產生回答；範圍內 24 題依指定知識卡逐題人工核對事實正確性；六題 out-of-scope 檢查拒答標籤。
+- How it was tested: 先做 q001 單題探針，成功後執行 `python -m eternal_polaris.evaluation --online`；首輪保留原始結果，只重試兩個失敗記錄一次；人工逐題比較回答、expected source 與回傳 source，將結果寫入獨立 reviewed JSON／manual CSV，不修改來源題庫的空白 `manual_fact_score`。
+- Expected result: 30 題皆通過結構與知識卡驗證、`run_status=valid`、`error_count=0`；範圍內題目可人工評分；out-of-scope 題預測為 `out_of_scope`。
+- Observed result: 首輪 28/30 成功；q014 重試成功，q027（Python list comprehension）連續兩次 `JSONDecodeError`，最終 29/30 有效、`run_status=invalid`、`error_count=1`。在此無效邊界內，24 題範圍內回答皆完成逐題人工核對，事實分數 24/24；分類 accuracy=0.875、macro F1=0.883861、source match rate=0.916667、平均延遲 2408.93ms、p95=3313ms。六題 out-of-scope 沒有任何一題標記為 `out_of_scope`，refusal rate=0；其中 q027 為格式錯誤，其他題多標為 `uncertain` 或 `general`。原始 `data/eval_questions.csv` 仍有 30 個空白 `manual_fact_score`，避免把特定生成結果回填污染題庫。
+- Result: Fail（整體 30 題報告無效；不得宣稱通過）。人工事實核對僅代表 24 題成功生成的範圍內回答，不抵銷 q027 錯誤、分類錯誤或 out-of-scope 契約失敗。
+- Evidence: `results/openai-evaluation-20260920.json`（首輪）、`results/openai-evaluation-20260920-final.json`（重試）、`results/openai-evaluation-20260920-reviewed.json`（人工核對）、`results/openai-evaluation-20260920-manual.csv`（每題明細）。
+- Date: 2026-09-20
+- Linked task ID: LB-E5, LB-005
+- Run type: live model evaluation + manual source-card review
+
+## ST-021｜Google 31B 30 題有效評估與限流復原
+
+- What was tested: `data/eval_questions.csv` 的 30 題自由問答分類集，以 Google `gemma-4-31b-it` 真實產生回答；24 題知識範圍內回答依指定知識卡逐題人工核對；同時驗證 Google 每分鐘 30 次限制下的節流、429 退避、逾時重試與可續跑報表。
+- How it was tested: 先以 26B 單題探針確認 API 可用，但快速批次碰到獨立配額 429 後停止使用該模型；改走獨立 31B 配額，以至少 2.1 秒請求起始間隔、429 至少 60 秒退避、最多 2 次嘗試與 50–52 秒逾時執行。續跑只沿用既有成功記錄，最後重試 q010／q015；另執行受影響測試與完整 `pytest -q`，並把人工核對寫入獨立 reviewed JSON／manual CSV，不修改來源題庫。
+- Expected result: 30 題皆產生可解析答案，`run_status=valid`、`error_count=0`；遇到暫時性 429、5xx、逾時或無效 JSON 可受控退避／重試，不會在一分鐘內無節制轟炸 API；可查看每題人工評分明細。
+- Observed result: Google 31B 最終 30/30 有效、`error_count=0`，24 題範圍內回答人工事實核對 24/24；classification accuracy=0.875、macro F1=0.883861、source match rate=0.916667、平均延遲 35947.4ms、p95=80795.0ms。24 題首試成功、6 題第二試成功。分類差異為 q010、q013、q014 與 q025–q030；來源未命中 q010、q014。q025–q030 的六個舊期待值均為 `out_of_scope`，但現行「自由提問」指令明確允許人物、歷史、日常與一般知識，故 refusal rate=0 是評估契約漂移，未反向修改 Bot 來灌分。完整 pytest 顯示 100% 且 exit 0。
+- Result: Pass（30 題執行與報表有效、人工事實核對完成、限流復原可重跑）；Follow-up（更新六題 out-of-scope 舊期待值，並持續改善三題分類與兩題來源命中）。
+- Evidence: `results/google-31b-evaluation-20260920-valid.json`（有效報表；SHA-256 `7c492be9f1b0fbf0b4ea23cfd675bb9e5a4b829d3191af0c2bd192c7cbeff72a`）、`results/google-31b-evaluation-20260920-reviewed.json`（人工核對；SHA-256 `2c678c0408d86f16fc80d35afab810d57b56959bceeea6ffffa503b8c9d5ae42`）、`results/google-31b-evaluation-20260920-manual.csv`（每題明細；SHA-256 `3525efa7e5f348e2d5bef27c2763842a20e8a8a15065a27369a44f40d1c88087`）、`MissionCenter/google-31b-evaluation-20260920.md`。
+- Date: 2026-09-20
+- Linked task ID: LB-E5, LB-005, LB-E6
+- Run type: live Google model evaluation + rate-limit recovery + manual source-card review + automated regression
+
+## ST-022｜main 發布隱私清理與 CodeRabbit 收斂
+
+- What was tested: GitHub `main` 發布候選內容是否移除所有受版控的新舊簡報，同時保留本機簡報；續跑評估是否綁定相同題目與知識資料；未標籤、含空格或連字號的有效付款卡號是否會遮罩。
+- How it was tested: 以全套 `pytest`、Ruff、Bandit、`pip-audit`、`compileall` 與 staged diff check 驗證；另建立只含 16 個小型文字／程式檔的隔離 Git sandbox 執行 CodeRabbit 完整差異審查，修正兩項有效問題後，再對 4 個受影響檔案執行聚焦複審。
+- Expected result: staged tree 不含簡報、演講稿、簡報插圖與簡報產生器；本機最終檔維持存在但被忽略；測試與靜態檢查通過；CodeRabbit 不留下未處置的有效重大問題。
+- Observed result: 全套 1191 項 pytest 通過；Ruff、Bandit、`pip-audit`、`compileall` 與 diff check 通過。CodeRabbit 完整審查提出 3 項：2 項 Major 已修正，1 項 Minor 經產品行為與 iPhone 實測證據確認為刻意設計；聚焦複審為 0 項。最終 v38、報告插圖與產生器留在本機並受 `.gitignore` 保護，舊簡報與舊簡報文件已排定自目前 Git tree 移除。
+- Result: Pass（本機發布候選；遠端 `main` 於推送後另行核對 commit）。
+- Date: 2026-09-21
+- Linked task ID: LB-E5, LB-006
+- Run type: automated regression + security audit + isolated external code review + privacy release gate

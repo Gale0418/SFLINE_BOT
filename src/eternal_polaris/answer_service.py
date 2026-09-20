@@ -50,6 +50,30 @@ _CONTEXTUAL_SENSITIVE_PATTERNS = (
         "[地址已遮罩]",
     ),
 )
+_UNLABELED_PAYMENT_CARD_PATTERN = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
+
+
+def _passes_luhn(value: str) -> bool:
+    total = 0
+    parity = len(value) % 2
+    for index, character in enumerate(value):
+        digit = int(character)
+        if index % 2 == parity:
+            digit *= 2
+            if digit > 9:
+                digit -= 9
+        total += digit
+    return total % 10 == 0
+
+
+def _mask_unlabeled_payment_card(match: re.Match[str]) -> str:
+    candidate = match.group(0)
+    if not re.search(r"[ -]", candidate):
+        return candidate
+    digits = re.sub(r"\D", "", candidate)
+    if 13 <= len(digits) <= 19 and _passes_luhn(digits):
+        return "[付款卡號已遮罩]"
+    return candidate
 
 
 def _redact_sensitive(text: str) -> str:
@@ -58,6 +82,7 @@ def _redact_sensitive(text: str) -> str:
         redacted = pattern.sub(replacement, redacted)
     for pattern, replacement in _CONTEXTUAL_SENSITIVE_PATTERNS:
         redacted = pattern.sub(replacement, redacted)
+    redacted = _UNLABELED_PAYMENT_CARD_PATTERN.sub(_mask_unlabeled_payment_card, redacted)
     return redacted
 
 
@@ -201,8 +226,10 @@ class OpenAIAnswerService:
             "缺乏依據、記不清、人物或名稱無法辨識、尚無定論，使用 label=uncertain、source_ids=[]；"
             "在回答中指出哪部分不是很確定，區分已知與推測，必要時請對方補充背景，不要編造細節。"
             "本服務沒有即時搜尋。最新消息、即時數字與無法核實的說法，要明說無法即時確認，使用 uncertain。"
+            "即使使用者要求程式碼，也只提供最小可執行片段與必要說明；整份回答保持精簡，避免因過長而截斷 JSON。"
             "不捏造書目、網址或引用，不假裝已搜尋查證；來源只可使用真正支持答案的知識卡 ID。"
             "若答案由知識卡支持，才使用以下三種科學分類並附來源；科學推測不能說成已證實。"
+            "只要 source_ids 非空，label 必須和至少一張引用知識卡的分類一致。"
             "不要只因話題不同就輸出 out_of_scope 或引導使用者去挑戰。"
             "observed_verified 代表已有觀測或實驗證據；theoretical_unrealized 代表有理論描述但未實現；"
             "science_fiction 代表作品設定或超出現有理論支持。若比較多種狀態，先逐項說清楚，再選主要結論作 label。"
@@ -277,7 +304,7 @@ class OpenAIAnswerService:
             model=self._model,
             instructions=self._instructions,
             input=prompt,
-            max_output_tokens=350,
+            max_output_tokens=600,
             reasoning={"effort": "none"},
             store=False,
             text={
@@ -297,7 +324,7 @@ class OpenAIAnswerService:
             "https://generativelanguage.googleapis.com/v1beta/models/"
             f"{model_id}:generateContent"
         )
-        generation_config: dict[str, Any] = {"maxOutputTokens": 350}
+        generation_config: dict[str, Any] = {"maxOutputTokens": 600}
         is_gemma_4 = self._model.startswith("gemma-4-")
         if is_gemma_4:
             # Google documents Gemma 4 thinking and system instructions, but
@@ -319,6 +346,7 @@ class OpenAIAnswerService:
             "鍵只能有 label、answer、source_ids。"
             "label 只能是 " + "、".join(label.value for label in ScienceLabel) + "。"
             "answer 必須是非空字串；source_ids 必須是最多三個字串的陣列。"
+            "若 source_ids 非空，label 必須和至少一張引用卡片標示的分類一致。"
         )
         response = self._client.post(
             url,

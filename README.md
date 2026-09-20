@@ -55,7 +55,7 @@ OPENAI_MODEL=gpt-5.6-luna
 
 ### 🩵 淺藍互動介面
 
-導引式學習、科學回答與星之試煉使用淺藍 Flex Message，四座寶庫各有一張 AI 生成主視覺；另備妥六格 Rich Menu，直接進入觀星、問答、四座寶庫、試煉、學習進度與功能說明。機器人不能替使用者變更 LINE 聊天室桌布，但能讓所有可控制的訊息卡片與選單維持一致配色。設計、圖片網址與套用方式見 [Rich Menu 與 Flex Message](docs/rich-menu-and-flex.md)。
+導引式學習、科學回答與星之試煉使用淺藍 Flex Message，四座寶庫各有一張 AI 生成主視覺；另備妥四格 Rich Menu，直接進入自由問答、引導學習、星之試煉與學習進度。機器人不能替使用者變更 LINE 聊天室桌布，但能讓所有可控制的訊息卡片與選單維持一致配色。設計、圖片網址與套用方式見 [Rich Menu 與 Flex Message](docs/rich-menu-and-flex.md)。
 
 ### 🌱 四座寶庫導引式學習
 
