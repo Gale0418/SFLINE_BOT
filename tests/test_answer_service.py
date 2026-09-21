@@ -290,6 +290,15 @@ def test_provider_prompt_masks_unlabeled_grouped_payment_card(knowledge):
     assert "[付款卡號已遮罩]" in prompt
 
 
+def test_provider_prompt_masks_unlabeled_ungrouped_payment_card(knowledge):
+    client = FakeGoogleClient({"label": "chat", "answer": "已遮罩。", "source_ids": []})
+    service = OpenAIAnswerService("test", "gemma-4-26b-a4b-it", knowledge, client=client)
+    service.answer("請記住 4111111111111111", ())
+    prompt = client.body["contents"][0]["parts"][0]["text"]
+    assert "4111111111111111" not in prompt
+    assert "[付款卡號已遮罩]" in prompt
+
+
 def test_provider_prompt_preserves_invalid_grouped_number(knowledge):
     client = FakeGoogleClient({"label": "chat", "answer": "正常。", "source_ids": []})
     service = OpenAIAnswerService("test", "gemma-4-26b-a4b-it", knowledge, client=client)
@@ -306,6 +315,7 @@ def test_provider_prompt_preserves_invalid_grouped_number(knowledge):
         "臺北市看流星雨可以去哪裡？",
         "1969年7月20日發生了什麼太空事件？",
         "一光年約9460730472580800公尺，這是怎麼算的？",
+        "模擬資料中的距離是9460730472580808公尺，該怎麼解讀？",
     ],
 )
 def test_provider_prompt_preserves_public_places_historical_dates_and_science_numbers(

@@ -51,6 +51,15 @@ _CONTEXTUAL_SENSITIVE_PATTERNS = (
     ),
 )
 _UNLABELED_PAYMENT_CARD_PATTERN = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
+_SCIENTIFIC_QUANTITY_SUFFIX_PATTERN = re.compile(
+    r"^\s*(?:"
+    r"公尺|公里|千米|公分|釐米|毫米|微米|奈米|"
+    r"公斤|公克|毫克|秒|分鐘|小時|天|年|光年|"
+    r"赫茲|[kMGT]?Hz|焦耳|瓦特|牛頓|帕斯卡|電子伏特|eV|"
+    r"開爾文|攝氏度|°C"
+    r")(?=$|[\s，。！？、,.;:）)])",
+    re.IGNORECASE,
+)
 
 
 def _passes_luhn(value: str) -> bool:
@@ -68,7 +77,8 @@ def _passes_luhn(value: str) -> bool:
 
 def _mask_unlabeled_payment_card(match: re.Match[str]) -> str:
     candidate = match.group(0)
-    if not re.search(r"[ -]", candidate):
+    suffix = match.string[match.end() :]
+    if _SCIENTIFIC_QUANTITY_SUFFIX_PATTERN.match(suffix):
         return candidate
     digits = re.sub(r"\D", "", candidate)
     if 13 <= len(digits) <= 19 and _passes_luhn(digits):

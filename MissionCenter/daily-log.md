@@ -78,6 +78,10 @@
 
 ## 2026-09-21
 
+- Timestamp: 2026-09-21T20:34:56+08:00
+  - Change: 修復 Mission Center legacy summary 遷移造成的 Project／Goal／Cycle／Objective placeholder 污染；確認歷史 CI 失敗與摘要無因果關係，並依 CodeRabbit 全庫審查補強未分組付款卡號遮罩與科學量測數字保留。
+  - Reason: 恢復專案真實身分，避免把已修復的 clean-runner 依賴事故誤歸因於摘要，同時處置跨舊版本審查發現的唯一有效敏感資料邊界。
+  - Impact: 一次性 Python 3.11 clean environment 完成 1193 項 pytest、82.69% branch coverage、pip check、compileall 與離線評估；CodeRabbit 審查 129 檔、1 項 Minor 已以失敗測試重現並修正。未重跑歷史 GitHub Actions，亦未把本機驗證冒充遠端 CI 或 NAS 發布證據。
 - Timestamp: 2026-09-21T05:44:31+08:00
   - Change: 準備直接發布至 `main` 的收斂版本；將本機最終簡報、逐頁講稿、插圖及簡報產生器加入忽略規則，並把先前已追蹤的簡報交付物與簡報文件排定從目前 Git tree 移除。另依 CodeRabbit 審查修正續跑評估輸入雜湊綁定，以及未標籤分組付款卡號遮罩。
   - Reason: 避免含講者姓名的簡報出現在 GitHub 目前版本，同時防止續跑結果混用不同資料，並補齊敏感號碼外送前的遮罩邊界。

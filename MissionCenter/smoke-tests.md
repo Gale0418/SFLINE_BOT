@@ -241,3 +241,14 @@
 - Date: 2026-09-21
 - Linked task ID: LB-E5, LB-006
 - Run type: automated regression + security audit + isolated external code review + privacy release gate
+
+## ST-023｜摘要污染修復、clean-runner CI 重現與付款卡遮罩補強
+
+- What was tested: `project.md`／`progress.md` 專案身分是否恢復且保留現有進度；目前 `requirements-ci.lock` 與 workflow 是否可在全新 Python 3.11 環境完成 CI；未分組付款卡號遮罩與科學量測數字非回歸。
+- How it was tested: 執行 Mission Center doctor、`git diff --check`；建立一次性 Python 3.11 環境並依 `requirements-ci.lock` 執行 `pip check`、`compileall`、完整 pytest branch coverage 與離線評估；另以隔離 Git fixture 對 129 個現存程式／測試／設定／文件檔執行 CodeRabbit 審查，排除密鑰、二進位、簡報、知識卡、鎖檔與產物。
+- Expected result: 摘要不再退化成 Mission Center placeholder；乾淨 CI 環境可完成測試；有效未分組卡號遮罩，同時保留緊接科學單位的長整數；外部審查無未處置有效問題。
+- Observed result: doctor 與 diff check 通過；完整 1193 項 pytest 通過，branch coverage 82.69%；CodeRabbit 提出 1 項 Minor，已先以失敗測試重現，再補上 Luhn 與科學單位邊界，8 個聚焦案例及完整回歸皆通過。未使用第三次審查額度追逐 clean badge。
+- Result: Pass（本機 metadata、clean-runner 模擬、回歸測試與外部審查處置）；GitHub push CI 與 NAS 運行版本仍須在發布後分別核對。
+- Date: 2026-09-21
+- Linked task ID: LB-006
+- Run type: metadata repair + clean-environment CI simulation + isolated external code review + automated regression
