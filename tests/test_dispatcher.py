@@ -109,6 +109,162 @@ def test_durable_dispatcher_persists_deduplicates_and_completes(tmp_path):
     assert replayed == []
 
 
+def test_durable_per_key_cap_allows_other_conversation_to_use_remaining_capacity(tmp_path):
+    first_started = threading.Event()
+    release_first = threading.Event()
+    other_user_done = threading.Event()
+    calls: list[str] = []
+
+    def handler(event):
+        event_id = event.webhook_event_id
+        calls.append(event_id)
+        if event_id == "evt-hot-1":
+            first_started.set()
+            assert release_first.wait(3)
+        if event_id == "evt-other":
+            other_user_done.set()
+
+    dispatcher = DurableEventDispatcher(
+        tmp_path / "per-key-admission.sqlite3",
+        max_workers=1,
+        queue_capacity=2,
+        max_pending_per_key=100,
+        max_persisted_jobs=3,
+        max_persisted_per_key=2,
+        key_fn=lambda event: event.source.user_id,
+    )
+    dispatcher.start(handler)
+    try:
+        assert dispatcher._max_persisted_per_key == 2
+        hot_first = _line_event("evt-hot-1", user_id="U-hot")
+        hot_second = _line_event("evt-hot-2", user_id="U-hot")
+        hot_third = _line_event("evt-hot-3", user_id="U-hot")
+        other = _line_event("evt-other", user_id="U-other")
+
+        assert dispatcher.submit_many((hot_first,), handler)
+        assert first_started.wait(1)
+        assert dispatcher.submit_many((hot_second,), handler)
+        # Redelivery is acknowledged without consuming another per-key slot.
+        assert dispatcher.submit_many((hot_first,), handler)
+        assert dispatcher.submit_many((hot_third,), handler) is False
+        # The hot conversation cannot consume all three global slots.
+        assert dispatcher.submit_many((other,), handler)
+        release_first.set()
+        assert other_user_done.wait(3)
+        assert calls.count("evt-hot-1") == 1
+        assert "evt-hot-2" in calls
+        assert "evt-other" in calls
+        with sqlite3.connect(dispatcher._path) as db:
+            hot_terminal_key = db.execute(
+                "SELECT conversation_key FROM webhook_jobs_v1 WHERE event_id='evt-hot-1'"
+            ).fetchone()[0]
+        assert hot_terminal_key is None
+    finally:
+        release_first.set()
+        dispatcher.shutdown(wait=True)
+
+
+def test_durable_per_key_batch_admission_is_atomic(tmp_path):
+    first_started = threading.Event()
+    release_first = threading.Event()
+    handler = lambda event: (
+        first_started.set() if event.webhook_event_id == "evt-atomic-a" else None,
+        release_first.wait(3) if event.webhook_event_id == "evt-atomic-a" else None,
+    )
+    path = tmp_path / "per-key-atomic.sqlite3"
+    dispatcher = DurableEventDispatcher(
+        path,
+        max_workers=1,
+        queue_capacity=2,
+        max_pending_per_key=10,
+        max_persisted_jobs=4,
+        max_persisted_per_key=2,
+        key_fn=lambda event: event.source.user_id,
+    )
+    dispatcher.start(handler)
+    try:
+        assert dispatcher.submit_many((_line_event("evt-atomic-a", user_id="U-A"),), handler)
+        assert first_started.wait(1)
+        batch = (
+            _line_event("evt-atomic-b", user_id="U-A"),
+            _line_event("evt-atomic-c", user_id="U-A"),
+        )
+        assert dispatcher.submit_many(batch, handler) is False
+        with sqlite3.connect(path) as db:
+            assert db.execute(
+                "SELECT event_id FROM webhook_jobs_v1 ORDER BY event_id"
+            ).fetchall() == [("evt-atomic-a",)]
+    finally:
+        release_first.set()
+        dispatcher.shutdown(wait=True)
+
+
+def test_dispatcher_migrates_and_refreshes_active_conversation_keys(tmp_path):
+    path = tmp_path / "legacy-key.sqlite3"
+    payload = _line_event("evt-legacy-key", user_id="U-legacy").to_json()
+    now = time.time()
+    with sqlite3.connect(path) as db:
+        db.execute(
+            "CREATE TABLE webhook_jobs_v1 ("
+            "event_id TEXT PRIMARY KEY,payload TEXT,state TEXT NOT NULL,"
+            "attempts INTEGER NOT NULL DEFAULT 0,created_at REAL NOT NULL,"
+            "updated_at REAL NOT NULL,error_type TEXT)"
+        )
+        db.execute(
+            "INSERT INTO webhook_jobs_v1 "
+            "(event_id,payload,state,attempts,created_at,updated_at) "
+            "VALUES ('evt-legacy-key',?,'pending',0,?,?)",
+            (payload, now, now),
+        )
+
+    dispatcher = DurableEventDispatcher(
+        path,
+        max_workers=1,
+        max_persisted_per_key=2,
+        key_fn=lambda event: f"rotated:{event.source.user_id}",
+    )
+    with sqlite3.connect(path) as db:
+        key = db.execute(
+            "SELECT conversation_key FROM webhook_jobs_v1 WHERE event_id='evt-legacy-key'"
+        ).fetchone()[0]
+        index_names = {
+            row[1] for row in db.execute("PRAGMA index_list(webhook_jobs_v1)")
+        }
+    assert key == "rotated:U-legacy"
+    assert "idx_webhook_jobs_v1_state_key" in index_names
+    dispatcher.shutdown(wait=True)
+
+    with sqlite3.connect(path) as db:
+        db.execute(
+            "UPDATE webhook_jobs_v1 SET conversation_key='stale-key' "
+            "WHERE event_id='evt-legacy-key'"
+        )
+        db.execute(
+            "INSERT INTO webhook_jobs_v1 "
+            "(event_id,payload,state,attempts,created_at,updated_at,conversation_key) "
+            "VALUES ('evt-invalid-key','{bad-json','pending',0,?,?, 'stale-invalid-key')",
+            (now, now),
+        )
+    refreshed = DurableEventDispatcher(
+        path,
+        max_workers=1,
+        max_persisted_per_key=2,
+        key_fn=lambda event: f"rotated:{event.source.user_id}",
+    )
+    with sqlite3.connect(path) as db:
+        keys = dict(
+            db.execute(
+                "SELECT event_id,conversation_key FROM webhook_jobs_v1 "
+                "WHERE event_id IN ('evt-legacy-key','evt-invalid-key')"
+            ).fetchall()
+        )
+    assert keys == {
+        "evt-legacy-key": "rotated:U-legacy",
+        "evt-invalid-key": None,
+    }
+    refreshed.shutdown(wait=True)
+
+
 def test_durable_dispatcher_retries_definite_failure_but_not_ambiguous_reply(tmp_path):
     attempts = 0
     succeeded = threading.Event()
@@ -164,8 +320,9 @@ def test_restart_quarantines_unknown_processing_job_without_replaying(tmp_path):
     restarted.start(lambda event: calls.append(event.webhook_event_id))
     time.sleep(0.2)
     with sqlite3.connect(path) as db:
-        state, stored_payload, error_type = db.execute(
-            "SELECT state,payload,error_type FROM webhook_jobs_v1 WHERE event_id=?",
+        state, stored_payload, error_type, conversation_key = db.execute(
+            "SELECT state,payload,error_type,conversation_key "
+            "FROM webhook_jobs_v1 WHERE event_id=?",
             ("evt-interrupted",),
         ).fetchone()
     assert calls == []
@@ -174,6 +331,7 @@ def test_restart_quarantines_unknown_processing_job_without_replaying(tmp_path):
         payload,
         "ProcessInterruptedUnknown",
     )
+    assert conversation_key is None
     assert not restarted.ready()
 
     requeue_interrupted(path, "evt-interrupted")
@@ -356,15 +514,23 @@ def test_durable_store_indexes_match_queue_queries(tmp_path):
             "WHERE state='pending' ORDER BY created_at LIMIT ?",
             (1000,),
         ).fetchall()
+        key_count_plan = db.execute(
+            "EXPLAIN QUERY PLAN SELECT conversation_key,COUNT(*) "
+            "FROM webhook_jobs_v1 "
+            "WHERE state IN ('pending','queued','processing') "
+            "GROUP BY conversation_key"
+        ).fetchall()
 
     delete_text = " ".join(str(row[3]) for row in delete_plan)
     interrupted_text = " ".join(str(row[3]) for row in interrupted_plan)
     count_text = " ".join(str(row[3]) for row in count_plan)
     pump_text = " ".join(str(row[3]) for row in pump_plan)
+    key_count_text = " ".join(str(row[3]) for row in key_count_plan)
     assert "idx_webhook_jobs_v1_state_updated" in delete_text
     assert "idx_webhook_jobs_v1_state_updated" in interrupted_text
     assert "USING COVERING INDEX idx_webhook_jobs_v1_state_" in count_text
     assert "idx_webhook_jobs_v1_state_created" in pump_text
+    assert "idx_webhook_jobs_v1_state_key" in key_count_text
     dispatcher.shutdown(wait=True)
 
 
@@ -386,8 +552,8 @@ def test_durable_dispatcher_discards_expired_event_before_handler(tmp_path):
     state = error_type = None
     while time.time() < deadline:
         with sqlite3.connect(path) as db:
-            state, error_type = db.execute(
-                "SELECT state,error_type FROM webhook_jobs_v1 WHERE event_id=?",
+            state, error_type, conversation_key = db.execute(
+                "SELECT state,error_type,conversation_key FROM webhook_jobs_v1 WHERE event_id=?",
                 ("evt-expired",),
             ).fetchone()
         if state == "failed":
@@ -395,4 +561,6 @@ def test_durable_dispatcher_discards_expired_event_before_handler(tmp_path):
         time.sleep(0.02)
     dispatcher.shutdown(wait=True)
     assert calls == []
-    assert (state, error_type) == ("failed", "ReplyTokenExpiredBeforeProcessing")
+    assert (state, error_type, conversation_key) == (
+        "failed", "ReplyTokenExpiredBeforeProcessing", None
+    )

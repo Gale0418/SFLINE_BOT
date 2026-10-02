@@ -153,6 +153,7 @@ def create_app(
         max_persisted_jobs=(
             settings.webhook_worker_threads + settings.webhook_queue_capacity
         ),
+        max_persisted_per_key=settings.webhook_max_pending_per_key + 1,
         key_fn=lambda event: _event_key(event, settings.line_channel_secret),
     )
 

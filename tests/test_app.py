@@ -466,6 +466,7 @@ def test_default_dispatcher_bounds_atomic_admission_and_deduplicates_redelivery(
     )
     dispatcher = app.extensions["event_dispatcher"]
     assert dispatcher._max_persisted_jobs == 2
+    assert dispatcher._max_persisted_per_key == 2
     try:
         assert _post(app, _body_for_events(("evt-a",)), settings).status_code == 200
         assert started.wait(1)
@@ -493,6 +494,15 @@ def test_default_dispatcher_bounds_atomic_admission_and_deduplicates_redelivery(
         # Existing IDs are acknowledged without consuming new persisted slots.
         assert _post(app, rejected, settings).status_code == 200
         assert len(provider.calls) == 3
+        deadline = time.time() + 3
+        while time.time() < deadline:
+            with sqlite3.connect(settings.webhook_store_path) as db:
+                rows = db.execute(
+                    "SELECT event_id,state FROM webhook_jobs_v1 ORDER BY event_id"
+                ).fetchall()
+            if rows == [("evt-a", "done"), ("evt-b", "done"), ("evt-c", "done")]:
+                break
+            time.sleep(0.02)
         with sqlite3.connect(settings.webhook_store_path) as db:
             assert db.execute(
                 "SELECT event_id,state FROM webhook_jobs_v1 ORDER BY event_id"

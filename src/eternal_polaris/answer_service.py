@@ -151,6 +151,19 @@ def _is_generic_followup(question: str) -> bool:
     return any(pattern.fullmatch(normalized) for pattern in _GENERIC_FOLLOWUP_PATTERNS)
 
 
+def _recent_named_topic_cards(
+    history: tuple[Exchange, ...], knowledge: KnowledgeBase,
+) -> tuple[KnowledgeCard, ...]:
+    """Resolve a recent topic from user turns, skipping only complete generic turns."""
+    for exchange in reversed(history[-3:]):
+        prior_question = exchange.user
+        if _is_generic_followup(prior_question):
+            continue
+        prior_cards = knowledge.context_cards_for_question(prior_question)
+        return prior_cards if _has_named_card_topic(prior_question, prior_cards) else ()
+    return ()
+
+
 def _has_explicit_card_subject(question: str, cards: tuple[KnowledgeCard, ...]) -> bool:
     subject = _normalize_retrieval_text(_card_request_subject(question))
     if len(subject) < 2:
@@ -341,14 +354,7 @@ class OpenAIAnswerService:
             context_cards = ()
             # Skip only complete generic continuations. A newer, non-generic
             # question with no known topic is a boundary; do not revive older cards.
-            for exchange in reversed(history[-3:]):
-                prior_question = exchange.user
-                if _is_generic_followup(prior_question):
-                    continue
-                prior_cards = self._knowledge.context_cards_for_question(prior_question)
-                if _has_named_card_topic(prior_question, prior_cards):
-                    context_cards = prior_cards
-                break
+            context_cards = _recent_named_topic_cards(history, self._knowledge)
         context = self._knowledge.prompt_context(context_cards)
         evidence = context or "（沒有足夠相關的知識卡；此時不得杜撰卡片 ID 或來源。）"
         prompt = (
@@ -515,6 +521,8 @@ class HybridAnswerService:
                     card for card in candidates
                     if _has_explicit_card_subject(question, (card,))
                 )[:3]
+            if not cards and not _normalize_retrieval_text(subject):
+                cards = _recent_named_topic_cards(history, self._knowledge)[:3]
             if cards:
                 answer = BotAnswer(
                     label=cards[0].label,

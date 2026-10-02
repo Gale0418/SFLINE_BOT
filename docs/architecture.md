@@ -35,7 +35,7 @@ flowchart LR
     L -->|HTTPS Webhook| N[ngrok]
     N --> F[Flask /callback]
     F --> V[以原始 body 驗證簽章]
-    V --> Q{有界工作池有容量?}
+    V --> Q{全域容量與同對話 durable quota 可接受?}
     Q -->|否| R503[503 Busy]
     Q -->|是| ACK[200 OK]
     Q --> W[同使用者 FIFO Worker]
@@ -63,13 +63,15 @@ flowchart LR
 2. 使用 `X-Line-Signature` 驗證，失敗回 400。
 3. 解析完整事件批次。
 4. 先把完整事件批次寫入 SQLite durable inbox；同一 `webhookEventId` 以資料庫主鍵持久去重。
-5. 只有落盤成功才回 200；容量不足或資料庫不可寫回 503，讓 LINE 可以重新投遞。應用層的持久化 active 工作上限等於 worker 數加 queue capacity，和設定驗證的排隊預算一致；同 ID 重送不額外占容量。
+5. 只有整批事件通過 durable inbox admission 並落盤才回 200；全域容量、同對話容量不足或資料庫不可寫時回 503，讓 LINE 可以重新投遞。全域 active 上限等於 worker 數加 queue capacity，和設定驗證的排隊預算一致；同 ID 重送不額外占容量。
 6. 背景 worker 依加鹽 hash conversation key 排程；同 key FIFO，不同 key 可並行。
 7. 明確發生在 Reply API 之前的失敗可在 45 秒內最多重試三次；網路結果不明或處理中斷則隔離，不盲目重送一次性 reply token。
 
 完成或隔離的事件 ID 會保留七天，payload 在完成或失敗後清除，兼顧去重與資料最小化。`/health` 只表示程序存活；`/ready` 另檢查學習資料庫與 webhook inbox 是否可用。
 
-SQLite inbox 以 state／updated_at 和 state／created_at 索引支援清理、計數與取件。背景 pump 保留有界的事件 ID／conversation key 快取，在某個 key 已滿時略過重複 JSON 解析，並依實際 outstanding 容量恢復排程；其他 key 仍可繼續處理。
+Durable dispatcher 會在單一 SQLite admission transaction 內先查重，再計算全域 active 數與每個 conversation key 的 `pending`、`queued`、`processing` 數量。批次中的新 event IDs 依 key 彙總；若全域或任一 key 超過上限，整批 rollback 並回 503。已存在的去重 ID 不會重複計數。應用程式把 `WEBHOOK_MAX_PENDING_PER_KEY + 1` 傳入 `max_persisted_per_key`，其中額外的一筆代表正在處理的事件；此限制與全域上限並行生效，不承諾任何設定組合都會為其他 key 預留名額。
+
+SQLite inbox 以 state／updated_at、state／created_at 與 state／conversation_key 索引支援清理、計數、取件及 per-key admission。啟動時會遷移舊資料表加入 `conversation_key` 欄位，並在交易內把仍 active 的 payload 依目前 key function 重新計算，避免 LINE channel secret 輪替後同一對話被拆成不同 quota。完成、失敗或隔離的工作會清除此欄位；可解析的重試工作保留 key。無法解析的舊 active payload 會以 NULL key 保留，配額檢查暫時把它計入每個新 key，直到 pump 將工作隔離。背景 pump 保留有界的 event ID／conversation key 快取；某個 key 已滿時會略過該 key 的候選工作並檢視其他候選，但收件仍同時受全域容量與 per-key 容量限制。
 
 ## 5. 問答路徑
 
@@ -134,9 +136,13 @@ Actions 只保留兩條永久工作流：
 
 發布認證只有 `contents: read` 權限，不會自己 commit、push main 或移動 tag。裁判不修改被裁判的版本。
 
+NAS 候選版以指定 SHA 的 `git archive` 建立來源封存檔，再逐檔驗證 131 個 runtime 檔案：清冊分別保存封存檔原始 bytes 的 SHA-256 與 Git blob 的 SHA-256，並要求兩者完全相同，或封存檔的 CRLF 正規化為 LF 後與 Git blob 相同。`requirements.lock` 的 44 個鎖定套件名稱與版號也會逐項納入清冊；候選 image 驗收會比對封存檔內容、已安裝的套件檔案與套件版號。
+
+若 registry 暫時無法提供依賴，既有離線 overlay 流程會以相同鎖定依賴的 base image 疊上該 SHA 的來源與資料，再執行依賴及 image contract 檢查。這是候選版驗收路徑；驗收結果需另行記錄，不能由建立封存檔或 image 本身推定。
+
 ## 9. 容量與時間預算
 
-啟動時會以 worker 數、queue 容量、單一 key backlog、模型 timeout 與 LINE reply timeout 計算保守的最壞串行服務時間。若超過 55 秒安全預算，設定直接拒絕啟動。
+啟動時會以 worker 數、queue 容量、單一 key backlog、模型 timeout 與 LINE reply timeout 計算保守的最壞串行服務時間。`WEBHOOK_MAX_PENDING_PER_KEY` 同時參與 queue 服務時間估算與 per-key durable admission；全域 durable 上限仍是 worker 數加 queue capacity。若估算超過 55 秒安全預算，設定直接拒絕啟動。
 
 這不是保證 reply token 永遠有效，而是避免使用者把參數調成明顯不可能完成的組合。
 

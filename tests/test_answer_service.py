@@ -285,6 +285,53 @@ def test_explicit_card_request_with_history_returns_matching_cards(knowledge):
     assert fallback.calls == 0
 
 
+def test_subjectless_card_request_uses_nearest_named_topic_after_generic_turns(knowledge):
+    warp = knowledge.by_id["sw165"]
+    fallback = RecordingProvider(BotAnswer(ScienceLabel.CHAT, "不應呼叫模型", ()))
+    service = HybridAnswerService(fallback, knowledge)
+
+    answer = service.answer("給我相關卡片", (
+        Exchange("曲速引擎", "曲速卡片內容。"),
+        Exchange("可以再說一點嗎？", "曲速仍是理論概念。"),
+        Exchange("然後呢？", "還可比較作品設定。"),
+    ))
+
+    assert answer.source_ids == (warp.id,)
+    assert "曲速" in answer.answer
+    rendered = render_answer(answer, knowledge)
+    assert f"冷知識: {warp.cold_joke}" in rendered
+    assert f"來源：{warp.source_name}" in rendered
+    assert fallback.calls == 0
+
+
+def test_subjectless_card_request_stops_at_unknown_new_topic(knowledge):
+    fallback_answer = BotAnswer(ScienceLabel.CHAT, "沒有足夠資料。", (), route="model")
+    fallback = RecordingProvider(fallback_answer)
+    service = HybridAnswerService(fallback, knowledge)
+
+    answer = service.answer("給我相關卡片", (
+        Exchange("曲速引擎", "曲速卡片內容。"),
+        Exchange("所以呢？", "還可以繼續談。"),
+        Exchange("XYZQ真菌裝置用途是什麼？", "先前助手錯把曲速引擎扯進來；請補充背景。"),
+    ))
+
+    assert answer is fallback_answer
+    assert answer.source_ids == ()
+    assert fallback.calls == 1
+
+
+def test_subjectless_card_request_does_not_resolve_comparison_from_history(knowledge):
+    fallback = RecordingProvider(BotAnswer(ScienceLabel.CHAT, "我來比較兩者。", ()))
+    service = HybridAnswerService(fallback, knowledge)
+
+    answer = service.answer("比較曲速和快子，再給我相關卡片", (
+        Exchange("曲速引擎", "曲速卡片內容。"),
+    ))
+
+    assert answer.source_ids == ()
+    assert fallback.calls == 1
+
+
 @pytest.mark.parametrize("question", ["你有幾張卡片？", "哪些卡片沒有圖片？"])
 def test_general_card_inventory_question_still_uses_model(knowledge, question):
     fallback_answer = BotAnswer(ScienceLabel.CHAT, "我可以幫你查。", (), route="model")
@@ -492,7 +539,7 @@ def test_unknown_topic_after_generic_turn_stops_history_card_retrieval(knowledge
     _, ids = service._prompt("那它的用途呢？", (
         Exchange("曲速引擎呢？", "曲速尚未實現。"),
         Exchange("可以再說一點嗎？", "還可以比較作品設定。"),
-        Exchange("未收錄的XYZQ真菌裝置用途是什麼？", "請提供背景。"),
+        Exchange("未收錄的XYZQ真菌裝置用途是什麼？", "先前助手提過曲速卡，但請提供背景。"),
     ))
     assert not ids
 

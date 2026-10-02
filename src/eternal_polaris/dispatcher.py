@@ -230,17 +230,24 @@ class DurableEventDispatcher:
         queue_capacity: int = 4,
         max_pending_per_key: int = 4,
         max_persisted_jobs: int = 1000,
+        max_persisted_per_key: int | None = None,
         max_attempts: int = 3,
         retry_budget_seconds: float = 45.0,
         dedupe_retention_seconds: int = 7 * 86_400,
         key_fn: EventKeyFunction | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
-        if max_persisted_jobs < 1 or max_attempts < 1 or retry_budget_seconds <= 0:
+        if (
+            max_persisted_jobs < 1
+            or (max_persisted_per_key is not None and max_persisted_per_key < 1)
+            or max_attempts < 1
+            or retry_budget_seconds <= 0
+        ):
             raise ValueError("durable dispatcher limits must be positive")
         self._path = Path(path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._max_persisted_jobs = max_persisted_jobs
+        self._max_persisted_per_key = max_persisted_per_key
         self._max_attempts = max_attempts
         self._retry_budget_seconds = retry_budget_seconds
         self._dedupe_retention_seconds = dedupe_retention_seconds
@@ -269,9 +276,17 @@ class DurableEventDispatcher:
                 attempts INTEGER NOT NULL DEFAULT 0,
                 created_at REAL NOT NULL,
                 updated_at REAL NOT NULL,
-                error_type TEXT
+                error_type TEXT,
+                conversation_key TEXT
                 )"""
             )
+            columns = {
+                row[1] for row in db.execute("PRAGMA table_info(webhook_jobs_v1)")
+            }
+            if "conversation_key" not in columns:
+                db.execute(
+                    "ALTER TABLE webhook_jobs_v1 ADD COLUMN conversation_key TEXT"
+                )
             db.execute(
                 "CREATE INDEX IF NOT EXISTS idx_webhook_jobs_v1_state_updated "
                 "ON webhook_jobs_v1(state, updated_at)"
@@ -280,6 +295,11 @@ class DurableEventDispatcher:
                 "CREATE INDEX IF NOT EXISTS idx_webhook_jobs_v1_state_created "
                 "ON webhook_jobs_v1(state, created_at)"
             )
+            db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_webhook_jobs_v1_state_key "
+                "ON webhook_jobs_v1(state, conversation_key)"
+            )
+            db.execute("BEGIN IMMEDIATE")
             db.execute(
                 "UPDATE webhook_jobs_v1 SET state='pending',updated_at=? "
                 "WHERE state='queued'",
@@ -290,10 +310,41 @@ class DurableEventDispatcher:
             # so quarantine it instead of guessing which side committed first.
             db.execute(
                 "UPDATE webhook_jobs_v1 "
-                "SET state='interrupted',updated_at=?,error_type='ProcessInterruptedUnknown' "
+                "SET state='interrupted',updated_at=?,error_type='ProcessInterruptedUnknown',"
+                "conversation_key=NULL "
                 "WHERE state='processing'",
                 (time.time(),),
             )
+            db.execute(
+                "UPDATE webhook_jobs_v1 SET conversation_key=NULL "
+                "WHERE state IN ('done','failed','interrupted') "
+                "AND conversation_key IS NOT NULL"
+            )
+            # Refresh active rows at startup so key-function rotations (such as a
+            # LINE secret change) cannot split one conversation across quotas.
+            # Invalid legacy payloads keep a NULL key and conservatively count for
+            # every key until the pump quarantines them.
+            db.execute(
+                "UPDATE webhook_jobs_v1 SET conversation_key=NULL "
+                "WHERE state IN ('pending','queued','processing') "
+                "AND conversation_key IS NOT NULL"
+            )
+            legacy_rows = db.execute(
+                "SELECT event_id,payload FROM webhook_jobs_v1 "
+                "WHERE state IN ('pending','queued','processing') AND payload IS NOT NULL"
+            ).fetchall()
+            keyed_rows: list[tuple[str, str]] = []
+            for event_id, payload in legacy_rows:
+                try:
+                    event = Event.from_json(payload)
+                except Exception:
+                    continue
+                keyed_rows.append((self._event_key(event, event_id), event_id))
+            db.executemany(
+                "UPDATE webhook_jobs_v1 SET conversation_key=? WHERE event_id=?",
+                keyed_rows,
+            )
+            db.commit()
         try:
             os.chmod(self._path, 0o600)
         except OSError:
@@ -329,14 +380,14 @@ class DurableEventDispatcher:
         batch = tuple(events)
         if not batch:
             return True
-        unique_rows: dict[str, str] = {}
+        unique_rows: dict[str, tuple[str, str]] = {}
         for event in batch:
             payload = event.to_json() if hasattr(event, "to_json") else json.dumps(event.to_dict())
             event_id = str(getattr(event, "webhook_event_id", "") or "").strip()
             if not event_id:
                 self._logger.error("event=webhook_rejected reason=missing_event_id")
                 return False
-            unique_rows[event_id] = payload
+            unique_rows[event_id] = (payload, self._event_key(event, event_id))
         rows = tuple(unique_rows.items())
         now = time.time()
         with self._state_lock:
@@ -374,11 +425,34 @@ class DurableEventDispatcher:
                 if active + len(new_rows) > self._max_persisted_jobs:
                     db.rollback()
                     return False
+                if self._max_persisted_per_key is not None and new_rows:
+                    active_keys = db.execute(
+                        "SELECT conversation_key,COUNT(*) FROM webhook_jobs_v1 "
+                        "WHERE state IN ('pending','queued','processing') "
+                        "GROUP BY conversation_key"
+                    ).fetchall()
+                    active_by_key = Counter(
+                        {key: count for key, count in active_keys if key is not None}
+                    )
+                    unknown_active = sum(
+                        count for key, count in active_keys if key is None
+                    )
+                    additions = Counter(key for _, (_, key) in new_rows)
+                    if any(
+                        active_by_key[key] + unknown_active + count
+                        > self._max_persisted_per_key
+                        for key, count in additions.items()
+                    ):
+                        db.rollback()
+                        return False
                 db.executemany(
                     "INSERT INTO webhook_jobs_v1 "
-                    "(event_id,payload,state,attempts,created_at,updated_at) "
-                    "VALUES (?,?,'pending',0,?,?)",
-                    ((event_id, payload, now, now) for event_id, payload in new_rows),
+                    "(event_id,payload,state,attempts,created_at,updated_at,conversation_key) "
+                    "VALUES (?,?,'pending',0,?,?,?)",
+                    (
+                        (event_id, payload, now, now, event_key)
+                        for event_id, (payload, event_key) in new_rows
+                    ),
                 )
                 db.commit()
             self._pump_locked()
@@ -468,7 +542,8 @@ class DurableEventDispatcher:
             if now - created_at >= self._retry_budget_seconds:
                 db.execute(
                     "UPDATE webhook_jobs_v1 SET state='failed',payload=NULL,updated_at=?,"
-                    "error_type='ReplyTokenExpiredBeforeProcessing' WHERE event_id=?",
+                    "error_type='ReplyTokenExpiredBeforeProcessing',conversation_key=NULL "
+                    "WHERE event_id=?",
                     (now, job.event_id),
                 )
                 self._logger.warning(
@@ -493,9 +568,11 @@ class DurableEventDispatcher:
             with closing(self._connect()) as db:
                 db.execute(
                     "UPDATE webhook_jobs_v1 SET state=?,payload=CASE WHEN ? THEN payload ELSE NULL END,"
+                    "conversation_key=CASE WHEN ? THEN conversation_key ELSE NULL END,"
                     "updated_at=?,error_type=? WHERE event_id=?",
                     (
                         "pending" if retry else "failed",
+                        retry,
                         retry,
                         time.time(),
                         type(exc).__name__,
@@ -515,7 +592,8 @@ class DurableEventDispatcher:
         else:
             with closing(self._connect()) as db:
                 db.execute(
-                    "UPDATE webhook_jobs_v1 SET state='done',payload=NULL,updated_at=?,error_type=NULL "
+                    "UPDATE webhook_jobs_v1 SET state='done',payload=NULL,conversation_key=NULL,"
+                    "updated_at=?,error_type=NULL "
                     "WHERE event_id=?",
                     (time.time(), job.event_id),
                 )
@@ -525,7 +603,8 @@ class DurableEventDispatcher:
     def _set_failed(self, event_id: str, error_type: str) -> None:
         with closing(self._connect()) as db:
             db.execute(
-                "UPDATE webhook_jobs_v1 SET state='failed',payload=NULL,updated_at=?,error_type=? "
+                "UPDATE webhook_jobs_v1 SET state='failed',payload=NULL,conversation_key=NULL,"
+                "updated_at=?,error_type=? "
                 "WHERE event_id=?",
                 (time.time(), error_type, event_id),
             )
