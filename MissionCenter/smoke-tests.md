@@ -300,3 +300,15 @@
 - Live questions: 候選問答 23/25。曲速卡 `tu001`／`sw166` 被測試誤限定為 `sw165`，修正接受已收錄曲速集合；另一筆「給我相關卡片」在泛型追問後失去主題是有效 P2，後續已修。此結果不作發布通過證據。
 - Review: 三領域 Luna 專家查證 GENERAL grounding、資料權限、備份路徑邊界、泛型追問、佇列容量與效能問題；CodeRabbit 第四輪 116 檔指出 durable per-key admission 缺口，後續已修。合成 1000 筆同 key pump 中位數由約 100ms 降到 2.427ms；不是所有負载或端到端效能保證。
 - Result: 中間檢查點。`8d5a96f`／`21ec0b9` 的後續完整 pytest 因有效新修補而停止，皆為 superseded partial，不列通過；最終證據另記 ST-028。正式 bot 尚未切換新版。
+
+## ST-028｜最終全面審查、回歸與正式 NAS 發布
+
+- Date: 2026-10-02；Linked task ID: LB-008, LB-009, LB-010。
+- Frozen code: `a3078f1cf7139b1a0b01d6c9359af468ae5f3e4d`；fresh Python 3.11.9、鎖定依賴。pip check、compileall、離線1234卡／30題契約 PASS；完整 pytest **1259 passed、10 skipped、1 warning、424.22秒、83.23% branch coverage**，exit 0。Windows平台跳過不算通過；warning為既有pytest cache權限。
+- Reviews: 玩家、安全與效能三席 Luna 多輪查證與最小修補；另有獨立唯讀證據仲裁。六輪CodeRabbit實際覆蓋137/103/103/116/112/113檔，7 issues：6有效已修、1表格空行以原檔反證駁回。最後人工requeue缺口以交易容量與current key恢復修正、定向及完整回歸驗證；沒有未處置P0/P1或確認成立低級問題。每個滾動小時最多三輪、fixture小檔總數≤150，大資料／圖片／秘密／報告排除。不把外部建議或模擬觀點當成有效審查。
+- Behavior: `21ec0b9` 候選25/25混合本地與真實GPT-6 Luna問答通過，含曲速/快子/糾纏/冥王星、三輪追問索卡、12個種子隨機完整題目及四組自由問答。另六種索卡語法用拒絕模型fallback的stub通過。其後Git diff只有dispatcher/requeue/tests/MC變更，問答程式、知識資料與顯示來源內容相同；不宣稱新SHA重新跑25組付費API。新a307映像另外跑131runtime檔、19installed source檔、44鎖定依賴逐項hash/version及靜態問答/SDK契約確認。
+- NAS POSIX: a307候選容器六項 Linux 實测全部PASS：私有權限、symlink備份邊界、symlink目標模式保留、root替換FD錨定、外部DB/manifest/sentinel未改及descriptor收尾。使用無網路--rm容器與臨時資料，不改正式持久資料。
+- Deployment: image `sha256:63e5b5261f3dc1c7a20365f30eee584d9c3010d78762846260e0a4eff5b6023a`，revision label為上述code SHA；bot `f82a9e1f941eb3fa8db10e1ad61205137942245118b9b7f1780ec9345c3a12cf` healthy。正式運行設定openai/gpt-6-luna、private目錄0700、learning DB0600。ngrok `99495bb52c61d53ed0d906ee3f4d33be4fb8e0ddba3f3bd013d4521916c9f87f` 與部署前完全相同；Compose／env／持久資料卷保持既有部署位置。
+- HTTP: NAS loopback health/ready 200；使用者電腦從外部HTTPS檢查health/ready 200、1234卡／300題、媒體HEAD 200 image/jpeg。NAS宿主curl對公開端點請求失敗，不冒稱該連線路徑通過；外部端點實測結果與Bot runtime健康各自驗證。
+- Recovery: 正常registry拉取逾時，改用NAS已存在且44鎖定依賴完全相同的基底overlay，更新完整package/src/data/scripts/assets後驗收，主Dockerfile未改。首次source backup因舊checkout缺少eval CSV在切bot前停止；修正明確既有檔案allowlist並chmod600後重試成功。驗證helper的stdin/curl格式問題另存失敗紀錄，修正工具後驗證通過，沒有因此修改已凍結產品程式。
+- Result: 程式、審查與正式NAS發布PASS；GitHub推送/同SHA CI由後續對帳補記。GPT-6 Luna手機E2E、新完整30題線上評估、正式報告簡報/15分鐘演練未重跑；deliverables與所有審查秘密暫存不提交。

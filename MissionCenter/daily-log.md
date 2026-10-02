@@ -102,3 +102,10 @@
 - 本日追加 LB-008／LB-009：曲速卡片索取與新話題检索修正，全部 1234 張固定「冷知識:」嘴賤網友式吐槽；仍沿用使用者 main 發布、兔子每小時最多三次且每次150檔、排除報告產物與 Docker 更新授權。首次137檔 CodeRabbit完成1個有效發布驗證問題，已修正；最終驗收未完成前不標 Done。
 
 - 使用者追加LB-010全面抓蟲，三領域專家提示詞明確要求可重現、優先級、影響、最小修法；玩家、安全可靠性、效能架構三席Luna並行唯讀，正式發布暫緩直到審查收斂。第一版fresh完整1223tests PASS／coverage82.82%，離線1234卡＋30题契約PASS；不是全面審查已結案。
+
+- 2026-10-02 最新驗證與發布狀態：source `a3078f1cf7139b1a0b01d6c9359af468ae5f3e4d` 完整 pytest 1259 passed、10 skipped、1 warning、424.22 秒、83.23% branch coverage；pip check、compileall、離線 evaluation 通過。候選 131 runtime 檔／44 鎖定依賴 parity 與 6 項 POSIX checks 通過。main 尚未 push，GitHub CI 未知，正式部署仍待結果。
+- 部署重試前置：首次部署在 source backup 前置檢查失敗，舊 NAS app 沒有 `data/eval_questions.csv`，因此沒有切換 bot。helper 已改為只備份明確存在的 src／卡片／quiz／README／pyproject／lock allowlist 並設 600 權限；重試進行中，尚不記錄成功。
+- 21ec0b9 候選的 25 組混合本地與真實 GPT-6 Luna 問答通過；另 6 種語法以拒絕模型 fallback 的 stub 驗證，不呼叫 API。後續僅 dispatcher／requeue／tests／MissionCenter 有變更；answer source、knowledge、config、line gateway、learning、data、assets、lock 經 Git diff 證實內容相同，不宣稱對 a3078f1 重跑含 API 問答。
+- LB-008、LB-009、LB-010 已由 In Progress 轉 Review（不標 Done）；Task 數為 6/10 Done。六題評估 label 修正已完成，剩正式評審與 GPT-6 Luna 新版 30 題線上評估。GPT-6 Luna 手機 E2E、完整 30 題線上評估、正式報告／簡報與 15 分鐘演練未做且排除本輪 deliverables。
+
+- 2026-10-02 正式發布檢查點：a3078f1 新映像已部署，1259 tests／83.23% coverage及NAS健康、131檔／44依賴、private0700／DB0600通過；ngrok原ID保留。LB-009／LB-010由Review結案，LB-008待main推送與精確SHA CI對帳；Task 8/10 Done（80%）。詳見ST-028。

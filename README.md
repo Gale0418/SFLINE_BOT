@@ -297,10 +297,12 @@ Release certification 只有 `contents: read`，不會自己 commit、push main 
 
 ### 2026-10-02 問答與卡片更新
 
-- 現行 OpenAI 預設模型為 `gpt-6-luna`；NAS 環境設定已切換，後續新版映像依驗收證據發布。
+- OpenAI 部署設定為 `gpt-6-luna`。候選映像已完成 131 個 runtime 檔與 44 項鎖定依賴逐項 parity，以及 6 項 NAS POSIX checks；正式部署正在進行，尚待健康與部署結果確認。main 尚未 push，GitHub CI 狀態未知。
 - 新話題優先用本次問題檢索；指代追問可跨過完整的泛型承接句延續最近主題，遇到未知的新主題就停止回溯，避免更舊話題的卡片污染。
 - 「給我／交出某主題的相關卡片」可直接呈現已收錄內容，完整題目中的文字保留；一般知識卡也能顯示固定來源與吐槽。
 - 1234 張卡各有一句固定 `cold_joke`，以前綴「冷知識:」顯示嘴賤網友式冷笑話，問答卡與學習短講共用同一句。科幻與未實現構想維持原分類，笑話不加入模型證據，也不額外呼叫 API。
-- CodeRabbit 三輪審查各覆蓋137、103、103檔，4 issues中3項有效已修、1項表格空行以原檔駁回。後續隨機索卡與追問修正另有Luna唯讀複核及回歸；完整發布驗收見 `MissionCenter/smoke-tests.md`。
+- CodeRabbit 六輪分別覆蓋 137／103／103／116／112／113 檔；6 項有效 finding 已修正，1 項表格空行 finding 以反證結案。玩家／安全／效能三席 Luna 多輪唯讀審查與獨立仲裁確認的問題均已處置。21ec0b9 候選通過 25 組混合本地與真實 GPT-6 Luna 問答；另 6 種語法以拒絕模型 fallback 的 stub 驗證，不呼叫 API。其後只改 dispatcher／requeue／tests／MissionCenter，answer source、data、config、assets 內容相同，不宣稱對最新 SHA 重跑過含 API 問答。最新 source SHA `a3078f1cf7139b1a0b01d6c9359af468ae5f3e4d` 的完整 pytest 為 1259 passed、10 skipped、1 warning、83.23% branch coverage；pip check、compileall、離線評估通過。候選的 parity／POSIX 證據與尚未完成的正式發布分開記錄於 `MissionCenter/closeout.md`。
 
 `deliverables/`、報告產物、秘密與審查暫存檔不納入上傳。
+
+- 2026-10-02 正式發布檢查點：a3078f1 新映像已部署，1259 tests／83.23% coverage及NAS健康、131檔／44依賴、private0700／DB0600通過；ngrok原ID保留。LB-009／LB-010由Review結案，LB-008待main推送與精確SHA CI對帳；Task 8/10 Done（80%）。詳見ST-028。

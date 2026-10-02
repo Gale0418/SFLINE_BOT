@@ -1,16 +1,15 @@
-<!-- mission-center-derived schema=1.0 fingerprint-format=sha256-v2-lf source-fingerprint=6606de5daa1b5a14a69da6a1917bffb856660622ba17f350948418b5a480b487 -->
-# Working set
+# 目前工作摘要
 
-- Source of truth: tasks.md
+唯一任務狀態來源是 `tasks.md`。Task 8/10 Done（80%）；百分比不代表整份專題完成度。
 
-1. LB-E6 報告、簡報、Demo 與成果封裝（In Progress）—將 ST-019／ST-021 正式證據與題庫契約差異納入最終報告、簡報及 15 分鐘演練
-2. LB-E2 LINE 真實端到端流程（Review）—評審複核 LB-005 的既有手機證據
-3. LB-005 完成 ngrok 與手機 LINE 垂直切片（Review）—由評審依 ST-019 與 ST-021 複核手機四格、NAS 健康與 Google 30 題證據
-4. LB-E3 天文與科幻知識庫與回答格式（Review）—對齊正式交付 SHA、NAS 運行映像與同 SHA CI 證據
-5. LB-E5 30 題測試集與評估報表（Review）—評審複核有效報表與逐題人工明細；另排程更新六題舊 out-of-scope 標籤，使其符合「自由提問」產品契約
+- LB-008（Review）：程式、審查與正式 NAS 發布已通過；推送 main 後核對 GitHub CI 與發布認證的精確 SHA。
+- LB-E6（In Progress）：正式報告、簡報、15 分鐘演練與人工驗收；不列入本輪成果上傳。
+- LB-E2／LB-005（Review）：複核既有手機證據；GPT-6 Luna 手機 E2E 尚未重跑。
+- LB-E3（Review）：正式 NAS 已對齊 a3078f1 執行碼，待 main／CI 發布對帳。
+- LB-E5（Review）：六題分類契約已修，待正式評審；GPT-6 Luna 新版完整 30 題線上評估未執行。
 
-## 本日追加需求
+LB-009、LB-010 已依 ST-028 的完整回歸與正式發布證據從 Review 結案。最新驗證為 1259 passed、10 skipped、1 warning、83.23% 分支覆蓋率；131 個執行檔案、19 個安裝來源檔案、44 項鎖定依賴一致。NAS healthy、內外 health/ready 與媒體端點通過，ngrok 原 ID 保留。
 
-- LB-009：1234 張固定「冷知識:」嘴賤網友吐槽；顯示入口測試已通過，內容補強及完整回歸進行中。
-- LB-008：曲速／快子檢索與索卡修正；三輪 CodeRabbit 合計4 issues，3有效已修、1表格空行誤報已以原檔駁回。NAS新版與main尚未發布。
-- 上傳前先同步 README 與任務中心，排除deliverables與審查暫存產物。
+25 組混合本地／真實 GPT-6 Luna 問答的證據來自 21ec0b9；之後問答、卡片、顯示程式內容相同，新映像另驗檔案與依賴一致性，不宣稱重跑付費問答。六輪 CodeRabbit 的六項有效問題均已修，一項誤報以反證結案；三席專家與獨立仲裁沒有確認待修問題。
+
+Mission Center 插件的 freshness 診斷尚未修復；這份摘要從 canonical 任務內容整理，不冒稱插件已通過 freshness 或 completion passport 驗證。

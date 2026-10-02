@@ -11,15 +11,17 @@
 ## Open questions
 
 - 老師尚未公告正式期限、頁數與報告時間。
-- 憑證遷移的早期阻礙已由 ST-007 解除；手機 E2E 與四格實點已有 ST-017／ST-019，NAS GPT-6 Luna 運行有 ST-024。剩餘評審、交付與評估契約項目以 tasks.md 為準。
+- 憑證遷移的早期阻礙已由 ST-007 解除；手機 E2E 與四格實點已有 ST-017／ST-019，NAS GPT-6 Luna 運行有 ST-024。候選 parity／POSIX 驗收已通過，但候選尚未切換；正式評審、交付與評估契約項目以 tasks.md 為準。
 - 2026-10-02 既有本機 `.venv` 缺少 linebot.api／dotenv；乾淨環境歷史驗證見 ST-023，NAS 真實運行驗證見 ST-024。此本機環境維護尚未處理。
 
 ## 2026-10-02 目前狀態
 
-- 正式 NAS 的模型為 `gpt-6-luna`，provider=`openai`，沿用 Responses API；見 ST-024。下方 9 月的模型與審查說明屬歷史紀錄。
-- 核心 Task 為 6/7 已完成，剩 LB-005 正式評審複核。Epic 仍包含版本對齊、評估契約與成果交付，故這個百分比不能視為專題繳交就緒比例。
-- 已知 Google 31B 歷史 30 題有效結果不可改名為 GPT-6 Luna 成績；手機舊模型通過也不代表新模型的手機驗收已執行。
-- Mission Center 0.5.2 的 Rust `sync` 更新 progress/focus，卻未刷新 brief/working-set。本次已從正式檔案重建摘要內容；`status` 仍回報 `source_fingerprint_mismatch`，即使任務列表與摘要已正確。這是尚未處理的插件快取診斷限制，不是任務未完成，亦未修改插件原始碼或聲稱 freshness 檢查通過。
+- Task 共 10 項、6 項 Done（60%）；LB-008／009／010 為 Review，LB-E6 為 In Progress。這不是專題完成率；canonical 狀態以 tasks.md 為準。
+- 候選 131 runtime 檔與 44 項鎖定依賴 parity、6 項 NAS POSIX checks 通過。source SHA `a3078f1cf7139b1a0b01d6c9359af468ae5f3e4d` 完整 pytest 1259 passed、10 skipped、1 warning、83.23% branch coverage；pip check、compileall、離線評估通過。main 未 push、GitHub CI 未知；正式 NAS deployment 結果待 root 回報。
+- CodeRabbit 六輪涵蓋 137／103／103／116／112／113 檔，6 項有效問題已修，1 項表格空行 finding 有原文反證。玩家／安全／效能多輪 Luna 唯讀審查及獨立仲裁確認的問題均已處置；不保證未來零 bug，也不宣稱 strict plugin completion passport 通過。
+- 21ec0b9 候選的 25 組混合本地與真實 GPT-6 Luna 問答通過；另 6 種語法以拒絕模型 fallback 的 stub 驗證，不呼叫 API。其後僅 dispatcher／requeue／tests／MissionCenter 有變更；answer source、data、config、assets 內容相同，因此不宣稱 a3078f1 重跑過含 API 問答。
+- 六題舊 out-of-scope label 已修正；GPT-6 Luna 新版完整 30 題線上評估與手機 E2E 尚未執行。正式成果報告、簡報及 15 分鐘演練不屬本輪 deliverables。
+- Mission Center 衍生摘要已依 canonical tasks.md 更新；plugin freshness 狀態仍未獲驗證，不因內容已更新而宣稱通過。
 
 ## 2026-09-01 多角度審查摘要
 
@@ -43,10 +45,12 @@
 ## 2026-10-02 卡片與發布補充
 
 - 既有 `.venv` 未被改動；本次另建鎖定依賴的 Python 3.11 暫時環境，避免舊環境缺少 linebot.api/dotenv 影響驗證。
-- 兔子審查各137/103/103檔，符合每次150檔上限；三次時間10:21、10:36、10:43。本地隔離Git fixture排除大資料、圖片、密鑰、成果報告，先前失敗啟動未進入審查。
-- 4 issues判定：release certification舊模型斷言、遮罩截斷邊界、模型缺欄位錯誤契約三项有效並修正；cosmic-real-estate表格列25–31連續無空行，誤報不改。
+- CodeRabbit 六輪每輪均不超過 150 檔，覆蓋 137／103／103／116／112／113 檔；每個 fixture 總量不超過 150，排除大型 data/assets/secrets/reports。審查節流遵守每時窗最多三輪。
+- 7 項 finding 判定：舊 GPT cert、遮罩截斷邊界、模型缺欄位契約、per-key admission、卡片 grammar、人工 requeue 六項有效並修正；表格空行 finding 由原內容證明為 false positive。
 - 使用者追加隨機問答後，確實重現指代追問誤取弱年份卡、完整索卡題目被刪內文、GENERAL固定卡驗證與顯示缺口；均以回歸修正。Luna獨立唯讀再指出跨過未知新主題復活舊卡，改為相鄰最近主題並加測。此複核不冒稱CodeRabbit。
 - 1234句固定笑話定稿，逐卡ID對齊；錯配已修，另外補強純重述句。所有卡facts/source/label保留，僅sw165新增交通與短題alias、sw169補通訊與交通界線及正確來源名。
-- 兩次完整coverage執行在後續有效修正時停止，標示superseded，不當作完成證據；最終結果以新的fresh run及ST-026為準。
+- 兩次完整 coverage 執行在後續有效修正時停止，標示 superseded，不當作完成證據。最新 a3078f1 fresh pytest 已完成：1259 passed、10 skipped、1 warning、83.23% branch coverage；pip check、compileall、離線評估亦通過。正式 deployment 尚待 root 回報。
 
 - GitHub參考限定官方現成專案：[LINE Python SDK Flask範例](https://github.com/line/line-bot-sdk-python/blob/master/examples/flask-echo/app_with_handler.py)、[OpenAI Python SDK](https://github.com/openai/openai-python)。對照簽章驗證、短Webhook路徑、明確timeout/retry與client資源回收；不用範例的簡化同步echo取代現有背景dispatch與持久化保護。
+
+- 2026-10-02 正式發布檢查點：a3078f1 新映像已部署，1259 tests／83.23% coverage及NAS健康、131檔／44依賴、private0700／DB0600通過；ngrok原ID保留。LB-009／LB-010由Review結案，LB-008待main推送與精確SHA CI對帳；Task 8/10 Done（80%）。詳見ST-028。
