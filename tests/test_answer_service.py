@@ -285,12 +285,17 @@ def test_explicit_card_request_with_history_returns_matching_cards(knowledge):
     assert fallback.calls == 0
 
 
-def test_subjectless_card_request_uses_nearest_named_topic_after_generic_turns(knowledge):
+@pytest.mark.parametrize("question", [
+    "給我相關卡片", "有哪些卡片？", "卡片有哪些？", "有沒有卡片？",
+    "卡片有沒有？", "請看卡片", "看看知識卡", "拿出相關卡片",
+    "知識卡給我", "曲速的相關卡片有哪些？",
+])
+def test_subjectless_card_request_uses_nearest_named_topic_after_generic_turns(knowledge, question):
     warp = knowledge.by_id["sw165"]
     fallback = RecordingProvider(BotAnswer(ScienceLabel.CHAT, "不應呼叫模型", ()))
     service = HybridAnswerService(fallback, knowledge)
 
-    answer = service.answer("給我相關卡片", (
+    answer = service.answer(question, (
         Exchange("曲速引擎", "曲速卡片內容。"),
         Exchange("可以再說一點嗎？", "曲速仍是理論概念。"),
         Exchange("然後呢？", "還可比較作品設定。"),
@@ -328,6 +333,15 @@ def test_subjectless_card_request_does_not_resolve_comparison_from_history(knowl
         Exchange("曲速引擎", "曲速卡片內容。"),
     ))
 
+    assert answer.source_ids == ()
+    assert fallback.calls == 1
+
+
+@pytest.mark.parametrize("question", ["有哪些XYZQ真菌裝置卡片？", "XYZQ真菌裝置卡片有哪些？"])
+def test_unmatched_named_card_subject_does_not_borrow_history(knowledge, question):
+    fallback = RecordingProvider(BotAnswer(ScienceLabel.CHAT, "請補充主題資料。", ()))
+    service = HybridAnswerService(fallback, knowledge)
+    answer = service.answer(question, (Exchange("曲速引擎", "曲速內容。"),))
     assert answer.source_ids == ()
     assert fallback.calls == 1
 

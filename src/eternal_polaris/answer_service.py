@@ -68,9 +68,10 @@ _CONTEXT_DEPENDENT_FOLLOWUP_PATTERN = re.compile(
     r"它(?:呢|嗎|如何|怎麼)|他(?:呢|嗎|如何|怎麼)|她(?:呢|嗎|如何|怎麼)|"
     r"上述|前面|剛才)"
 )
+_CARD_REQUEST_VERBS = r"(?:快交出|交出|拿出|給我|提供|找出|找|列出?|看看?|顯示|有哪些|有沒有)"
 _CARD_REQUEST_PATTERN = re.compile(
-    r"(?:給我|提供|找|列出?|看看?|顯示|交出|拿出|相關|有哪些|有沒有).{0,12}(?:知識卡|卡片)|"
-    r"(?:知識卡|卡片).{0,12}(?:給我|提供|找|列出?|看看?|顯示|相關|有哪些|有沒有)",
+    rf"(?:{_CARD_REQUEST_VERBS}|相關).{{0,12}}(?:知識卡|卡片)|"
+    rf"(?:知識卡|卡片).{{0,12}}(?:{_CARD_REQUEST_VERBS}|相關)",
     re.IGNORECASE,
 )
 
@@ -111,9 +112,11 @@ def _redact_sensitive(text: str) -> str:
 
 _CARD_REQUEST_PREFIX = re.compile(
     r"^\s*(?:(?:請|可以|能不能|能否)\s*)?"
-    r"(?:快交出|交出|給我|提供|找出|找|列出|列|看看|顯示|有沒有)\s*"
+    rf"{_CARD_REQUEST_VERBS}\s*"
 )
-_CARD_REQUEST_SUFFIX = re.compile(r"(?:的)?(?:相關)?(?:知識卡|卡片)[？?！!。\s]*$")
+_CARD_REQUEST_SUFFIX = re.compile(
+    rf"(?:的)?(?:相關)?(?:知識卡|卡片)\s*(?:{_CARD_REQUEST_VERBS})?(?:嗎|呢)?[？?！!。\s]*$"
+)
 
 
 def _card_request_subject(question: str) -> str:
