@@ -249,6 +249,125 @@ def test_durable_dispatcher_skips_saturated_user_and_serves_another(tmp_path):
     assert calls.index("evt-b1") < calls.index("evt-a2")
 
 
+def test_durable_pump_reuses_saturated_key_cache_and_serves_other_users(
+    tmp_path, monkeypatch,
+):
+    path = tmp_path / "saturated-cache.sqlite3"
+    first_started = threading.Event()
+    release_first = threading.Event()
+    other_user_done = threading.Event()
+    all_done = threading.Event()
+    calls: list[str] = []
+    call_lock = threading.Lock()
+
+    def handler(event):
+        with call_lock:
+            calls.append(event.webhook_event_id)
+            if len(calls) == 21:
+                all_done.set()
+        if event.webhook_event_id == "evt-cache-a1":
+            first_started.set()
+            assert release_first.wait(3)
+        if event.webhook_event_id == "evt-cache-b1":
+            other_user_done.set()
+
+    parse_count = 0
+    original_from_json = Event.from_json
+
+    def counted_from_json(payload):
+        nonlocal parse_count
+        parse_count += 1
+        return original_from_json(payload)
+
+    monkeypatch.setattr(Event, "from_json", staticmethod(counted_from_json))
+    dispatcher = DurableEventDispatcher(
+        path,
+        max_workers=2,
+        queue_capacity=0,
+        max_pending_per_key=0,
+        key_fn=lambda event: event.source.user_id,
+    )
+    dispatcher.start(handler)
+    assert dispatcher.submit_many((_line_event("evt-cache-a1", user_id="U-A"),), handler)
+    assert first_started.wait(1)
+    assert dispatcher.submit_many(
+        tuple(
+            _line_event(f"evt-cache-a{i}", user_id="U-A")
+            for i in range(2, 21)
+        ),
+        handler,
+    )
+    parses_after_initial_saturation = parse_count
+    assert parses_after_initial_saturation == 20
+
+    corrupt_at = time.time()
+    with sqlite3.connect(path) as db:
+        db.execute(
+            "INSERT INTO webhook_jobs_v1 "
+            "(event_id,payload,state,attempts,created_at,updated_at) "
+            "VALUES ('evt-cache-corrupt','{not-json','pending',0,?,?)",
+            (corrupt_at, corrupt_at),
+        )
+    with dispatcher._state_lock:
+        dispatcher._pump_locked()
+    assert parse_count == parses_after_initial_saturation + 1
+    with sqlite3.connect(path) as db:
+        state, payload, error_type = db.execute(
+            "SELECT state,payload,error_type FROM webhook_jobs_v1 "
+            "WHERE event_id='evt-cache-corrupt'"
+        ).fetchone()
+    assert (state, payload) == ("failed", None)
+    assert error_type
+
+    assert dispatcher.submit_many((_line_event("evt-cache-b1", user_id="U-B"),), handler)
+    assert other_user_done.wait(1)
+    assert parse_count == parses_after_initial_saturation + 2
+    with dispatcher._state_lock:
+        dispatcher._pump_locked()
+    assert parse_count == parses_after_initial_saturation + 2
+
+    release_first.set()
+    assert all_done.wait(5)
+    dispatcher.shutdown(wait=True)
+    assert len(calls) == 21
+    assert calls.index("evt-cache-b1") < calls.index("evt-cache-a2")
+
+
+def test_durable_store_indexes_match_queue_queries(tmp_path):
+    path = tmp_path / "indexed.sqlite3"
+    dispatcher = DurableEventDispatcher(path, max_workers=1)
+    with sqlite3.connect(path) as db:
+        delete_plan = db.execute(
+            "EXPLAIN QUERY PLAN DELETE FROM webhook_jobs_v1 "
+            "WHERE state IN ('done','failed','interrupted') AND updated_at < ?",
+            (time.time(),),
+        ).fetchall()
+        interrupted_plan = db.execute(
+            "EXPLAIN QUERY PLAN UPDATE webhook_jobs_v1 SET payload=NULL "
+            "WHERE state='interrupted' AND updated_at < ?",
+            (time.time(),),
+        ).fetchall()
+        count_plan = db.execute(
+            "EXPLAIN QUERY PLAN SELECT COUNT(*) FROM webhook_jobs_v1 "
+            "WHERE state IN ('pending','queued','processing')"
+        ).fetchall()
+        pump_plan = db.execute(
+            "EXPLAIN QUERY PLAN SELECT event_id,payload FROM webhook_jobs_v1 "
+            "WHERE state='pending' ORDER BY created_at LIMIT ?",
+            (1000,),
+        ).fetchall()
+
+    delete_text = " ".join(str(row[3]) for row in delete_plan)
+    interrupted_text = " ".join(str(row[3]) for row in interrupted_plan)
+    count_text = " ".join(str(row[3]) for row in count_plan)
+    pump_text = " ".join(str(row[3]) for row in pump_plan)
+    assert "idx_webhook_jobs_v1_state_updated" in delete_text
+    assert "idx_webhook_jobs_v1_state_updated" in interrupted_text
+    assert "USING COVERING INDEX idx_webhook_jobs_v1_state_" in count_text
+    assert "idx_webhook_jobs_v1_state_created" in pump_text
+    dispatcher.shutdown(wait=True)
+
+
 def test_durable_dispatcher_discards_expired_event_before_handler(tmp_path):
     path = tmp_path / "expired.sqlite3"
     dispatcher = DurableEventDispatcher(path, max_workers=1, retry_budget_seconds=45)

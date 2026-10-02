@@ -7,7 +7,7 @@ import os
 import sqlite3
 import threading
 import time
-from collections import Counter, deque
+from collections import Counter, OrderedDict, deque
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
@@ -163,6 +163,12 @@ class ThreadPoolEventDispatcher:
         """Return the same conversation key used by admission control."""
         return self._safe_key(event)
 
+    def key_has_capacity(self, key: str) -> bool:
+        with self._state_lock:
+            return not self._closed and (
+                self._outstanding.get(key, 0) < self._max_outstanding_per_key
+            )
+
     def _safe_key(self, event: Any) -> str:
         try:
             key = str(self._key_fn(event) or "").strip()
@@ -205,6 +211,7 @@ class ThreadPoolEventDispatcher:
 class _DurableJob:
     event_id: str
     event: Any
+    event_key: str
 
 
 class DurableEventDispatcher:
@@ -243,12 +250,14 @@ class DurableEventDispatcher:
         self._closed = False
         self._pump_error: str | None = None
         self._pump_wake = threading.Event()
-        key_fn = key_fn or (lambda event: "")
+        self._pending_event_keys: OrderedDict[str, str] = OrderedDict()
+        self._saturated_keys: set[str] = set()
+        self._key_fn = key_fn or (lambda event: "")
         self._inner = ThreadPoolEventDispatcher(
             max_workers=max_workers,
             queue_capacity=queue_capacity,
             max_pending_per_key=max_pending_per_key,
-            key_fn=lambda job: key_fn(job.event),
+            key_fn=lambda job: job.event_key,
             logger=self._logger,
         )
         with closing(self._connect()) as db:
@@ -262,6 +271,14 @@ class DurableEventDispatcher:
                 updated_at REAL NOT NULL,
                 error_type TEXT
                 )"""
+            )
+            db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_webhook_jobs_v1_state_updated "
+                "ON webhook_jobs_v1(state, updated_at)"
+            )
+            db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_webhook_jobs_v1_state_created "
+                "ON webhook_jobs_v1(state, created_at)"
             )
             db.execute(
                 "UPDATE webhook_jobs_v1 SET state='pending',updated_at=? "
@@ -290,6 +307,14 @@ class DurableEventDispatcher:
         db = sqlite3.connect(self._path, timeout=10, isolation_level=None)
         db.execute("PRAGMA busy_timeout=10000")
         return db
+
+    def _event_key(self, event: Any, event_id: str) -> str:
+        try:
+            key = str(self._key_fn(event) or "").strip()
+        except Exception as exc:  # noqa: BLE001 - isolate an injected key function
+            self._logger.warning("event=worker_key_failed error_type=%s", type(exc).__name__)
+            key = ""
+        return key or f"anonymous:{event_id}"
 
     def start(self, handler: EventHandler) -> None:
         with self._state_lock:
@@ -385,17 +410,30 @@ class DurableEventDispatcher:
                 "WHERE state='pending' ORDER BY created_at LIMIT ?",
                 (self._max_persisted_jobs,),
             ).fetchall()
-        saturated_keys: set[str] = set()
+        saturated_keys = self._saturated_keys
         for event_id, payload in rows:
+            event_key = self._pending_event_keys.get(event_id)
+            if event_key is not None:
+                self._pending_event_keys.move_to_end(event_id)
+                if event_key in saturated_keys:
+                    if not self._inner.key_has_capacity(event_key):
+                        continue
+                    saturated_keys.discard(event_key)
             try:
                 event = Event.from_json(payload)
             except Exception as exc:  # noqa: BLE001 - corrupt durable payload must be quarantined
                 self._set_failed(event_id, type(exc).__name__)
                 continue
-            job = _DurableJob(event_id, event)
-            event_key = self._inner.event_key(job)
+            if event_key is None:
+                event_key = self._event_key(event, event_id)
+                self._pending_event_keys[event_id] = event_key
+                while len(self._pending_event_keys) > self._max_persisted_jobs:
+                    self._pending_event_keys.popitem(last=False)
             if event_key in saturated_keys:
-                continue
+                if not self._inner.key_has_capacity(event_key):
+                    continue
+                saturated_keys.discard(event_key)
+            job = _DurableJob(event_id, event, event_key)
             with closing(self._connect()) as db:
                 changed = db.execute(
                     "UPDATE webhook_jobs_v1 SET state='queued',updated_at=? "
@@ -424,6 +462,7 @@ class DurableEventDispatcher:
                 (job.event_id,),
             ).fetchone()
             if row is None:
+                self._pump_wake.set()
                 return
             attempts, created_at = int(row[0]) + 1, float(row[1])
             if now - created_at >= self._retry_budget_seconds:
@@ -435,6 +474,7 @@ class DurableEventDispatcher:
                 self._logger.warning(
                     "event=durable_job_expired age_seconds=%d", int(now - created_at)
                 )
+                self._pump_wake.set()
                 return
             db.execute(
                 "UPDATE webhook_jobs_v1 SET state='processing',attempts=?,updated_at=? WHERE event_id=?",

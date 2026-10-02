@@ -16,5 +16,7 @@
 | LB-006 | 全面品質優化與對抗審查 | Task | LB-E4 | P1 | Done | Codex | LB-E3 | 維持可靠性保護並在 NAS 上線前完成手機實機驗收 | 1176 項測試、82.91% coverage、Ruff、Bandit 與鎖定依賴稽核通過；最終無未處置 P0/P1 | L | execution,verification | 兩輪三席盲審與證據仲裁完成；CodeRabbit 六項皆修正或以程式證據駁回。Antigravity 串流中斷，未列入有效審查證據 |
 | LB-007 | 切換 GPT-6 Luna 並重啟 NAS 機器人 | Task | LB-E2 | P1 | Done | Codex | LB-004 | 已完成；後續手機 E2E 與模型評估依原任務另行驗收 | ST-024：真實模型回答、運行設定、healthy、內外 health/ready 通過 | S | execution,verification | 2026-10-02 已經 Review 複核；本機與 NAS .env 已更新、bot 已重新建立，image、資料卷及 ngrok 保留；備份權限 600；無原始碼修改，低風險評論 route=skip |
 
-| LB-008 | 曲速索卡修正、CodeRabbit 審查與 main／NAS 發布 | Task | LB-E3 | P1 | In Progress | Codex | LB-007 | 完成第二輪審查、完整測試與正式發布 | 現行問題回歸、CodeRabbit 有效問題處置、GitHub CI 與 NAS 健康 | M | execution,verification | 2026-10-02 主人已授權直接 main、Docker 更新；首輪 137 檔審查完成，一項舊模型驗證已修正，尚未發布 |
-| LB-009 | 1234 張卡片固定冷知識吐槽 | Task | LB-E3 | P1 | In Progress | Codex | LB-008 | 完成逐卡內容、資料檢查與問答／學習顯示驗證 | 每卡固定一句、嘴賤網友口氣、前綴冷知識:、不新增模型請求 | L | execution,verification | 2026-10-02 使用者選固定一句並指定語氣；內容分批準備中，尚未全數完成 |
+| LB-008 | 曲速索卡修正、CodeRabbit 審查與 main／NAS 發布 | Task | LB-E3 | P1 | In Progress | Codex | LB-007 | 完成最終審查、完整回歸與正式發布 | 現行問題回歸、CodeRabbit 有效問題處置、GitHub CI 與 NAS 健康 | M | execution,verification | 2026-10-02 主人已授權直接 main、Docker 更新；首輪 137 檔審查完成，一項舊模型驗證已修正，尚未發布 |
+| LB-009 | 1234 張卡片固定冷知識吐槽 | Task | LB-E3 | P1 | In Progress | Codex | LB-008 | 完成逐卡內容、資料檢查與問答／學習顯示驗證 | 每卡固定一句、嘴賤網友口氣、前綴冷知識:、不新增模型請求 | L | execution,verification | 2026-10-02 使用者選固定一句並指定語氣；內容已全數定稿，第一版候選驗證通過；最終審查及新版發布進行中 |
+
+| LB-010 | 全面抓蟲與三領域嚴格專家複查 | Task | LB-E4 | P1 | In Progress | Codex | LB-008, LB-009 | 收斂玩家／安全／效能審查，重現修正有效問題並複核 | 無未處置P0/P1，所有確認成立低級問題已修；最終回歸與NAS驗證 | L | execution,verification | 2026-10-02 使用者追加全面優化，先延後上傳與正式切換；三位Luna獨立審查，效能變更須有測量，不作無關重構 |

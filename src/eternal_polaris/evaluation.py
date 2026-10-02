@@ -64,7 +64,8 @@ def load_questions(path: Path) -> list[dict[str, str]]:
         ScienceLabel.OBSERVED_VERIFIED.value: 8,
         ScienceLabel.THEORETICAL_UNREALIZED.value: 8,
         ScienceLabel.SCIENCE_FICTION.value: 8,
-        ScienceLabel.OUT_OF_SCOPE.value: 6,
+        ScienceLabel.GENERAL.value: 2,
+        ScienceLabel.UNCERTAIN.value: 4,
     }
     if counts != Counter(expected) or len({row["id"] for row in rows}) != 30:
         raise ValueError("評估題庫分類數量或 ID 不符合規格")
@@ -103,6 +104,10 @@ def compute_metrics(records: Iterable[dict[str, object]]) -> dict[str, object]:
     correct = sum(row["expected_label"] == row["predicted_label"] for row in in_scope)
     out_scope = [row for row in rows if row["expected_label"] == ScienceLabel.OUT_OF_SCOPE.value]
     refused = sum(row["predicted_label"] == ScienceLabel.OUT_OF_SCOPE.value for row in out_scope)
+    free_questions = [
+        row for row in rows
+        if row["expected_label"] in (ScienceLabel.GENERAL.value, ScienceLabel.UNCERTAIN.value)
+    ]
     latencies = [float(row["latency_ms"]) for row in rows if row.get("latency_ms") is not None]
     sorted_latency = sorted(latencies)
     p95_index = max(0, min(len(sorted_latency) - 1, math.ceil(0.95 * len(sorted_latency)) - 1)) if sorted_latency else 0
@@ -118,6 +123,12 @@ def compute_metrics(records: Iterable[dict[str, object]]) -> dict[str, object]:
         "per_class": per_class,
         "macro_f1": statistics.fmean(item["f1"] for item in per_class.values()),
         "out_of_scope_refusal_rate": refused / len(out_scope) if out_scope else 0.0,
+        "out_of_scope_question_count": len(out_scope),
+        "free_question_count": len(free_questions),
+        "free_question_accuracy": (
+            sum(row["expected_label"] == row["predicted_label"] for row in free_questions)
+            / len(free_questions) if free_questions else None
+        ),
         "source_match_rate": sum(bool(row.get("source_match")) for row in in_scope) / len(in_scope) if in_scope else 0.0,
         "average_latency_ms": statistics.fmean(latencies) if latencies else 0.0,
         "p95_latency_ms": sorted_latency[p95_index] if sorted_latency else 0.0,

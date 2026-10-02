@@ -77,6 +77,29 @@ class RecordingProvider:
         return self.answer_value
 
 
+def test_model_general_card_is_grounded_after_source_validation(knowledge):
+    card = next(card for card in knowledge.cards if card.label is ScienceLabel.GENERAL)
+    client = SimpleNamespace(responses=FakeResponses({
+        "label": "general", "answer": "模型自行編寫的敘述不可顯示", "source_ids": [card.id],
+    }))
+    service = OpenAIAnswerService("test", "gpt-6-luna", knowledge, client=client)
+    answer = service.answer(card.canonical_question, ())
+    assert answer.route == "model_grounded"
+    assert answer.source_ids == (card.id,)
+    assert "模型自行編寫" not in answer.answer
+    assert card.facts[0].rstrip("。！？") in answer.answer
+
+
+def test_model_general_card_still_requires_matching_label_and_question_allowlist(knowledge):
+    service = OpenAIAnswerService("test", "gpt-6-luna", knowledge, client=SimpleNamespace())
+    observed = next(card for card in knowledge.cards if card.label is ScienceLabel.OBSERVED_VERIFIED)
+    raw = {"label": "general", "answer": "錯誤引用", "source_ids": [observed.id]}
+    with pytest.raises(KnowledgeError, match="分類一致"):
+        service._validate_raw_answer(raw, allowed_source_ids=frozenset([observed.id]))
+    with pytest.raises(ValueError, match="本題未提供"):
+        service._validate_raw_answer(raw, allowed_source_ids=frozenset())
+
+
 @pytest.mark.parametrize("followup", [False, True])
 def test_comet_is_not_silently_replaced_with_telescope(knowledge, followup):
     client = FakeGoogleClient({"label": "general", "answer": "哈勃望遠鏡不會毀滅世界。", "source_ids": []})
@@ -452,6 +475,32 @@ def test_followup_prefix_with_named_new_topic_still_changes_subject(knowledge):
     _, ids = service._prompt("那曲速引擎呢？", (Exchange("快子", "快子是假想粒子。"),))
     assert "sw165" in ids
     assert "sw169" not in ids
+
+
+@pytest.mark.parametrize("bridge", ["可以再說一點嗎？", "所以呢？", "接著呢？", "再來呢？"])
+def test_three_turn_generic_continuation_uses_nearest_named_topic(knowledge, bridge):
+    service = OpenAIAnswerService("test", "gpt-6-luna", knowledge, client=FakeResponses({}))
+    _, ids = service._prompt("那它的用途呢？", (
+        Exchange("曲速引擎呢？", "曲速在科幻中常見。"),
+        Exchange(bridge, "還可以比較作品設定。"),
+    ))
+    assert "sw165" in ids
+
+
+def test_unknown_topic_after_generic_turn_stops_history_card_retrieval(knowledge):
+    service = OpenAIAnswerService("test", "gpt-6-luna", knowledge, client=FakeResponses({}))
+    _, ids = service._prompt("那它的用途呢？", (
+        Exchange("曲速引擎呢？", "曲速尚未實現。"),
+        Exchange("可以再說一點嗎？", "還可以比較作品設定。"),
+        Exchange("未收錄的XYZQ真菌裝置用途是什麼？", "請提供背景。"),
+    ))
+    assert not ids
+
+
+def test_pure_generic_followup_does_not_use_weak_cards_without_history(knowledge):
+    service = OpenAIAnswerService("test", "gpt-6-luna", knowledge, client=FakeResponses({}))
+    _, ids = service._prompt("然後呢？", ())
+    assert not ids
 
 
 @pytest.mark.parametrize("card_id", [

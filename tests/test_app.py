@@ -6,9 +6,12 @@ import hmac
 import json
 import random
 import sqlite3
+import threading
 import time
+from dataclasses import replace
 
 import pytest
+from linebot.v3.webhooks import Event
 
 from eternal_polaris import persona
 from eternal_polaris.answer_service import SERVICE_ERROR_REPLY
@@ -82,6 +85,20 @@ def _body(message_type="text", event_id="evt-1", source_type="user", text="黑�
         ],
     }
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+
+def _body_for_events(event_ids, *, text="請問星星怎麼形成？"):
+    events = []
+    for event_id in event_ids:
+        event = json.loads(_body(event_id=event_id, text=text))["events"][0]
+        event["replyToken"] = f"reply-{event_id}"
+        event["message"]["id"] = f"message-{event_id}"
+        events.append(event)
+    return json.dumps(
+        {"destination": "U-bot", "events": events},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
 
 
 def _signature(body, secret):
@@ -411,6 +428,133 @@ def test_durable_app_retries_sqlite_failure_before_reply(
     dispatcher.shutdown(wait=True)
     assert learning.calls == 2
     assert gateway.replies[-1][1] == "資料庫恢復後已繼續。"
+
+
+def test_default_dispatcher_bounds_atomic_admission_and_deduplicates_redelivery(
+    settings, knowledge, quiz_bank, tmp_path
+):
+    settings = replace(
+        settings,
+        webhook_store_path=tmp_path / "bounded-app.sqlite3",
+        webhook_worker_threads=1,
+        webhook_queue_capacity=1,
+        webhook_max_pending_per_key=1,
+    )
+    started = threading.Event()
+    release = threading.Event()
+
+    class BlockingProvider:
+        def __init__(self):
+            self.calls = []
+
+        def answer(self, question, history):
+            del history
+            self.calls.append(question)
+            if len(self.calls) == 1:
+                started.set()
+                assert release.wait(3)
+            return BotAnswer(ScienceLabel.GENERAL, "合成答案。", ())
+
+    provider = BlockingProvider()
+    gateway = FakeReplyGateway()
+    app = create_app(
+        settings,
+        answer_provider=provider,
+        reply_gateway=gateway,
+        knowledge=knowledge,
+        quiz_bank=quiz_bank,
+    )
+    dispatcher = app.extensions["event_dispatcher"]
+    assert dispatcher._max_persisted_jobs == 2
+    try:
+        assert _post(app, _body_for_events(("evt-a",)), settings).status_code == 200
+        assert started.wait(1)
+
+        rejected = _body_for_events(("evt-b", "evt-c"))
+        assert _post(app, rejected, settings).status_code == 503
+        with sqlite3.connect(settings.webhook_store_path) as db:
+            assert db.execute(
+                "SELECT event_id FROM webhook_jobs_v1 ORDER BY event_id"
+            ).fetchall() == [("evt-a",)]
+
+        release.set()
+        deadline = time.time() + 3
+        while not gateway.replies and time.time() < deadline:
+            time.sleep(0.02)
+        assert len(gateway.replies) == 1
+
+        # LINE redelivery retries the whole rejected batch after capacity opens.
+        assert _post(app, rejected, settings).status_code == 200
+        deadline = time.time() + 3
+        while len(gateway.replies) < 3 and time.time() < deadline:
+            time.sleep(0.02)
+        assert len(gateway.replies) == 3
+
+        # Existing IDs are acknowledged without consuming new persisted slots.
+        assert _post(app, rejected, settings).status_code == 200
+        assert len(provider.calls) == 3
+        with sqlite3.connect(settings.webhook_store_path) as db:
+            assert db.execute(
+                "SELECT event_id,state FROM webhook_jobs_v1 ORDER BY event_id"
+            ).fetchall() == [("evt-a", "done"), ("evt-b", "done"), ("evt-c", "done")]
+    finally:
+        release.set()
+        dispatcher.shutdown(wait=True)
+
+
+def test_default_dispatcher_recovers_pending_rows_with_bounded_admission(
+    settings, knowledge, quiz_bank, tmp_path
+):
+    path = tmp_path / "pending-recovery.sqlite3"
+    settings = replace(
+        settings,
+        webhook_store_path=path,
+        webhook_worker_threads=1,
+        webhook_queue_capacity=0,
+        webhook_max_pending_per_key=0,
+    )
+    seed = DurableEventDispatcher(path, max_workers=1, queue_capacity=0)
+    seed.shutdown(wait=True)
+    events = tuple(
+        Event.from_dict(json.loads(_body(event_id=f"evt-recover-{i}"))["events"][0])
+        for i in range(3)
+    )
+    now = time.time()
+    with sqlite3.connect(path) as db:
+        db.executemany(
+            "INSERT INTO webhook_jobs_v1 "
+            "(event_id,payload,state,attempts,created_at,updated_at) "
+            "VALUES (?,?, 'pending',0,?,?)",
+            ((event.webhook_event_id, event.to_json(), now, now) for event in events),
+        )
+
+    gateway = FakeReplyGateway()
+    app = create_app(
+        settings,
+        answer_provider=FakeAnswerProvider(
+            BotAnswer(ScienceLabel.GENERAL, "合成答案。", ())
+        ),
+        reply_gateway=gateway,
+        knowledge=knowledge,
+        quiz_bank=quiz_bank,
+    )
+    dispatcher = app.extensions["event_dispatcher"]
+    try:
+        assert dispatcher._max_persisted_jobs == 1
+        deadline = time.time() + 3
+        while len(gateway.replies) < len(events) and time.time() < deadline:
+            time.sleep(0.02)
+        assert len(gateway.replies) == len(events)
+        with sqlite3.connect(path) as db:
+            assert db.execute(
+                "SELECT event_id,state FROM webhook_jobs_v1 ORDER BY event_id"
+            ).fetchall() == [
+                (event.webhook_event_id, "done") for event in events
+            ]
+        assert _post(app, _body(event_id="evt-recover-0"), settings).status_code == 200
+        assert len(gateway.replies) == len(events)
+    finally:
+        dispatcher.shutdown(wait=True)
 
 
 def test_home_command_exits_quiz_and_returns_menu(settings, knowledge, quiz_bank):

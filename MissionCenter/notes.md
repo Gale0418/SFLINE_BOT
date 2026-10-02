@@ -48,3 +48,5 @@
 - 使用者追加隨機問答後，確實重現指代追問誤取弱年份卡、完整索卡題目被刪內文、GENERAL固定卡驗證與顯示缺口；均以回歸修正。Luna獨立唯讀再指出跨過未知新主題復活舊卡，改為相鄰最近主題並加測。此複核不冒稱CodeRabbit。
 - 1234句固定笑話定稿，逐卡ID對齊；錯配已修，另外補強純重述句。所有卡facts/source/label保留，僅sw165新增交通與短題alias、sw169補通訊與交通界線及正確來源名。
 - 兩次完整coverage執行在後續有效修正時停止，標示superseded，不當作完成證據；最終結果以新的fresh run及ST-026為準。
+
+- GitHub參考限定官方現成專案：[LINE Python SDK Flask範例](https://github.com/line/line-bot-sdk-python/blob/master/examples/flask-echo/app_with_handler.py)、[OpenAI Python SDK](https://github.com/openai/openai-python)。對照簽章驗證、短Webhook路徑、明確timeout/retry與client資源回收；不用範例的簡化同步echo取代現有背景dispatch與持久化保護。

@@ -20,7 +20,7 @@ google | openai | auto
 ```
 
 - `google`：使用 `GEMINI_API_KEY` 與 `GEMINI_MODEL`，Demo 預設 `gemma-4-26b-a4b-it`。
-- `openai`：使用 `OPENAI_API_KEY` 與 `OPENAI_MODEL`，預設 `gpt-5.6-luna`。
+- `openai`：使用 `OPENAI_API_KEY` 與 `OPENAI_MODEL`，預設 `gpt-6-luna`。
 - `auto`：有 Google key 時優先 Google，否則使用 OpenAI。
 
 **不做執行時跨供應商 fallback。** 這是刻意的成本防護：Google 免費額度、rate limit 或 API 發生錯誤時，不應自動開始消耗 OpenAI 付費額度。
@@ -63,11 +63,13 @@ flowchart LR
 2. 使用 `X-Line-Signature` 驗證，失敗回 400。
 3. 解析完整事件批次。
 4. 先把完整事件批次寫入 SQLite durable inbox；同一 `webhookEventId` 以資料庫主鍵持久去重。
-5. 只有落盤成功才回 200；容量不足或資料庫不可寫回 503，讓 LINE 可以重新投遞。
+5. 只有落盤成功才回 200；容量不足或資料庫不可寫回 503，讓 LINE 可以重新投遞。應用層的持久化 active 工作上限等於 worker 數加 queue capacity，和設定驗證的排隊預算一致；同 ID 重送不額外占容量。
 6. 背景 worker 依加鹽 hash conversation key 排程；同 key FIFO，不同 key 可並行。
 7. 明確發生在 Reply API 之前的失敗可在 45 秒內最多重試三次；網路結果不明或處理中斷則隔離，不盲目重送一次性 reply token。
 
 完成或隔離的事件 ID 會保留七天，payload 在完成或失敗後清除，兼顧去重與資料最小化。`/health` 只表示程序存活；`/ready` 另檢查學習資料庫與 webhook inbox 是否可用。
+
+SQLite inbox 以 state／updated_at 和 state／created_at 索引支援清理、計數與取件。背景 pump 保留有界的事件 ID／conversation key 快取，在某個 key 已滿時略過重複 JSON 解析，並依實際 outstanding 容量恢復排程；其他 key 仍可繼續處理。
 
 ## 5. 問答路徑
 

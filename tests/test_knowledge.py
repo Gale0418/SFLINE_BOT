@@ -1,9 +1,23 @@
 from __future__ import annotations
 
 import pytest
+from unittest.mock import patch
+import eternal_polaris.knowledge as knowledge_module
 
 from eternal_polaris.knowledge import KnowledgeError
 from eternal_polaris.models import BotAnswer, ScienceLabel
+
+
+def test_direct_and_context_ranking_share_cache_without_changing_limits(knowledge):
+    with patch("eternal_polaris.knowledge._features", wraps=knowledge_module._features) as features:
+        short = knowledge._ranked_cards("星際旅行速度的疑問", 2)
+        full = knowledge._ranked_cards("星際旅行速度的疑問", 12)
+        assert features.call_count == 1
+        assert short == full[:2]
+        assert len(full) <= 12
+        larger = knowledge._ranked_cards("星際旅行速度的疑問", 20)
+        assert features.call_count == 2
+        assert full == larger[:12]
 
 
 def test_knowledge_has_expected_shape(knowledge):

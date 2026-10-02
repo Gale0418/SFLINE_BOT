@@ -18,7 +18,22 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_eval_dataset_shape():
-    assert len(load_questions(ROOT / "data" / "eval_questions.csv")) == 30
+    questions = load_questions(ROOT / "data" / "eval_questions.csv")
+    assert len(questions) == 30
+    assert [row["expected_label"] for row in questions[-6:]] == [
+        "uncertain", "general", "general", "uncertain", "uncertain", "uncertain",
+    ]
+
+
+def test_free_question_metrics_do_not_require_topic_refusal():
+    metrics = compute_metrics([
+        {"expected_label": "general", "predicted_label": "general"},
+        {"expected_label": "uncertain", "predicted_label": "general"},
+    ])
+    assert metrics["free_question_count"] == 2
+    assert metrics["free_question_accuracy"] == 0.5
+    assert metrics["out_of_scope_question_count"] == 0
+    assert compute_metrics([])["free_question_accuracy"] is None
 
 
 def test_resume_report_requires_matching_input_hashes(tmp_path: Path):

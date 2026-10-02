@@ -1,4 +1,6 @@
 import json
+import os
+import stat
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 
@@ -67,6 +69,44 @@ def test_legacy_schema_migration_preserves_progress(tmp_path, knowledge, quiz_ba
         ).fetchone()
     assert json.loads(state)["routes"]["cosmos"]["unlocked"] == 2
     assert updated_at == 2_000_000_000.0
+
+
+def test_learning_manager_creates_missing_parent_directories(tmp_path, knowledge, quiz_bank):
+    path = tmp_path / "not-created" / "nested" / "learning.sqlite3"
+
+    LearningManager(path, salt="secret", knowledge=knowledge, bank=quiz_bank)
+
+    assert path.is_file()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes are not enforced on Windows")
+def test_learning_database_and_private_directory_are_owner_only(tmp_path, knowledge, quiz_bank):
+    private = tmp_path / "private"
+    private.mkdir(mode=0o755)
+    os.chmod(private, 0o755)
+    path = private / "learning.sqlite3"
+
+    LearningManager(path, salt="secret", knowledge=knowledge, bank=quiz_bank)
+
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(private.stat().st_mode) == 0o700
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX symlink permission behavior is not available")
+def test_learning_manager_does_not_chmod_database_symlink_target(tmp_path, knowledge, quiz_bank):
+    target = tmp_path / "shared.db"
+    with sqlite3.connect(target) as db:
+        db.execute("CREATE TABLE existing (value TEXT)")
+    os.chmod(target, 0o644)
+    link = tmp_path / "learning.db"
+    try:
+        link.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"cannot create symlink on this host: {exc}")
+
+    LearningManager(link, salt="secret", knowledge=knowledge, bank=quiz_bank)
+
+    assert stat.S_IMODE(target.stat().st_mode) == 0o644
 
 
 def test_fail_remediation_no_unlock(manager):

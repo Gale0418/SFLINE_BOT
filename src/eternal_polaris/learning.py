@@ -4,8 +4,10 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import secrets
 import sqlite3
+import stat
 import time
 from contextlib import closing
 from pathlib import Path
@@ -24,6 +26,45 @@ STAGES = (
 )
 LEARN_COMMANDS = {"學習", "開始學習", "繼續學習", "學習進度", "學習地圖", "暫停學習", "刪除學習進度"}
 ROUTE_COMMANDS = {f"學習路線{key}": key for key in ("cosmos", "living_world", "laws", "future")}
+
+
+def _has_symlink_component(path: Path) -> bool:
+    """Avoid changing permissions through a configured symlink path."""
+    absolute = Path(os.path.abspath(path))
+    for component in (absolute, *absolute.parents):
+        try:
+            mode = os.lstat(component).st_mode
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(mode):
+            return True
+    return False
+
+
+def _prepare_private_sqlite_path(path: Path) -> None:
+    """Create/restrict the learning DB without following symlink targets."""
+    if os.name == "nt":
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return
+
+    parent_was_missing = not path.parent.exists()
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # The configured default is data/private. Restrict that dedicated directory,
+    # plus a new custom parent, while avoiding chmod on generic existing folders.
+    if not _has_symlink_component(path.parent) and (
+        parent_was_missing or path.parent.name == "private"
+    ):
+        os.chmod(path.parent, 0o700, follow_symlinks=False)
+
+    try:
+        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
+    except FileExistsError:
+        pass
+    else:
+        os.close(descriptor)
+
+    if not _has_symlink_component(path):
+        os.chmod(path, 0o600, follow_symlinks=False)
 
 # Explicit, stable question references: editing bank order must not change a course.
 OTHER_ROUTES = {
@@ -57,7 +98,7 @@ class LearningManager:
                 for card, question in lessons:
                     if (card is not None and card not in knowledge.by_id) or question not in bank.by_id:
                         raise ValueError("學習路線引用不存在的內容")
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        _prepare_private_sqlite_path(self.path)
         with closing(self._connect()) as db:
             db.execute(
                 "CREATE TABLE IF NOT EXISTS learning_v1 "

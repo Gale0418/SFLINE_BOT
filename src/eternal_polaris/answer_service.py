@@ -128,6 +128,29 @@ def _normalize_retrieval_text(text: str) -> str:
     )
 
 
+_GENERIC_FOLLOWUP_PATTERNS = tuple(
+    re.compile(pattern)
+    for pattern in (
+        r"^(?:可以|能不能|能否)?(?:再|多)?(?:說|講)(?:一點|一些|詳細一點)(?:嗎|呢)?$",
+        r"^(?:然後|那麼?)(?:呢|咧)?$",
+        r"^(?:所以|接著|再來)(?:呢|咧)?$",
+        r"^(?:還有)(?:嗎|呢|咧)?$",
+        r"^(?:可以|能不能|能否)?(?:舉例|舉個例子|舉一個例子)(?:嗎|呢)?$",
+        r"^(?:例如|比如)(?:呢|嗎)?$",
+        r"^那(?:是)?(?:哪(?:一年|一年的消息|年)|幾(?:年)?|什麼|怎麼|為什麼)(?:呢|嗎)?$",
+        r"^那(?:它|他|她)(?:的)?(?:用途|用處)(?:呢|嗎)?$",
+        r"^(?:它|他|她)(?:呢|嗎)$",
+        r"^(?:上述|前面|剛才)(?:呢|如何|怎麼)?$",
+    )
+)
+
+
+def _is_generic_followup(question: str) -> bool:
+    """Only classify complete, subjectless continuation phrases as generic."""
+    normalized = _normalize_retrieval_text(question)
+    return any(pattern.fullmatch(normalized) for pattern in _GENERIC_FOLLOWUP_PATTERNS)
+
+
 def _has_explicit_card_subject(question: str, cards: tuple[KnowledgeCard, ...]) -> bool:
     subject = _normalize_retrieval_text(_card_request_subject(question))
     if len(subject) < 2:
@@ -285,13 +308,13 @@ class OpenAIAnswerService:
             "使用者的糾正也不自動等於事實：依已知資訊判斷，不能確認時保留不確定性。"
             "話題不限於天文或知識卡；人物、歷史、日常與其他知識，都可以運用既有知識自然回答。"
             "知識卡是補充參考，不是可回答話題的白名單。卡片沒有收錄不代表你不知道，不可因此拒答。"
-            "有把握的一般知識使用 label=general、source_ids=[]，不用每句都說不確定。"
+            "有把握的一般知識使用 label=general；若引用本題提供的 general 知識卡則附其 ID，否則 source_ids=[]，不用每句都說不確定。"
             "缺乏依據、記不清、人物或名稱無法辨識、尚無定論，使用 label=uncertain、source_ids=[]；"
             "在回答中指出哪部分不是很確定，區分已知與推測，必要時請對方補充背景，不要編造細節。"
             "本服務沒有即時搜尋。最新消息、即時數字與無法核實的說法，要明說無法即時確認，使用 uncertain。"
             "即使使用者要求程式碼，也只提供最小可執行片段與必要說明；整份回答保持精簡，避免因過長而截斷 JSON。"
             "不捏造書目、網址或引用，不假裝已搜尋查證；來源只可使用真正支持答案的知識卡 ID。"
-            "若答案由知識卡支持，才使用以下三種科學分類並附來源；科學推測不能說成已證實。"
+            "若答案由知識卡支持，使用卡片的分類並附來源（也可以是 general）；科學推測不能說成已證實。"
             "只要 source_ids 非空，label 必須和至少一張引用知識卡的分類一致。"
             "不要只因話題不同就輸出 out_of_scope 或引導使用者去挑戰。"
             "observed_verified 代表已有觀測或實驗證據；theoretical_unrealized 代表有理論描述但未實現；"
@@ -307,17 +330,25 @@ class OpenAIAnswerService:
         )
         context_cards = self._knowledge.context_cards_for_question(question)
         if (
-            history and _CONTEXT_DEPENDENT_FOLLOWUP_PATTERN.match(question)
+            (
+                _CONTEXT_DEPENDENT_FOLLOWUP_PATTERN.match(question)
+                or _is_generic_followup(question)
+            )
             and not _has_named_card_topic(question, context_cards)
         ):
             # Pronouns and generic dates can have weak lexical neighbors of
             # their own. Resolve them from the latest named user topic instead.
             context_cards = ()
-            # Do not cross a newer unknown subject to revive an older card.
-            prior_question = history[-1].user
-            prior_cards = self._knowledge.context_cards_for_question(prior_question)
-            if _has_named_card_topic(prior_question, prior_cards):
-                context_cards = prior_cards
+            # Skip only complete generic continuations. A newer, non-generic
+            # question with no known topic is a boundary; do not revive older cards.
+            for exchange in reversed(history[-3:]):
+                prior_question = exchange.user
+                if _is_generic_followup(prior_question):
+                    continue
+                prior_cards = self._knowledge.context_cards_for_question(prior_question)
+                if _has_named_card_topic(prior_question, prior_cards):
+                    context_cards = prior_cards
+                break
         context = self._knowledge.prompt_context(context_cards)
         evidence = context or "（沒有足夠相關的知識卡；此時不得杜撰卡片 ID 或來源。）"
         prompt = (
@@ -350,7 +381,9 @@ class OpenAIAnswerService:
             label=ScienceLabel(label),
             answer=answer_text,
             source_ids=tuple(str(value) for value in source_ids),
-            route="model",
+            # IDs have passed the per-question allowlist; validation still
+            # checks labels/counts before ground_answer replaces model prose.
+            route="model_grounded" if label == "general" and source_ids else "model",
         )
         return self._knowledge.validate_answer(answer)
 

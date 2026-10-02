@@ -195,12 +195,16 @@ class KnowledgeBase:
     def _ranked_cards(
         self, normalized: str, limit: int = 12,
     ) -> tuple[tuple[float, KnowledgeCard], ...]:
-        cache_key = (normalized, limit)
+        if limit < 1:
+            return ()
+        # Direct matching (2) and fallback context (12) share one ranking pass.
+        rank_limit = max(12, limit)
+        cache_key = (normalized, rank_limit)
         with self._rank_cache_lock:
             cached = self._rank_cache.get(cache_key)
             if cached is not None:
                 self._rank_cache.move_to_end(cache_key)
-                return cached
+                return cached[:limit]
         query_features = _features(normalized)
         candidate_hits: Counter[int] = Counter()
         for feature in query_features:
@@ -228,7 +232,7 @@ class KnowledgeBase:
         result = tuple(
             (score, card)
             for score, _, card in heapq.nlargest(
-                min(limit, len(ranked)), ranked, key=lambda item: (item[0], item[1])
+                min(rank_limit, len(ranked)), ranked, key=lambda item: (item[0], item[1])
             )
         )
         with self._rank_cache_lock:
@@ -236,7 +240,7 @@ class KnowledgeBase:
             self._rank_cache.move_to_end(cache_key)
             while len(self._rank_cache) > 512:
                 self._rank_cache.popitem(last=False)
-        return result
+        return result[:limit]
 
     def match_question(
         self,

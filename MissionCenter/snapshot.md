@@ -3,8 +3,8 @@
 ## 2026-10-02 目前檢查點
 
 - Source of truth：tasks.md；此區是可重開摘要，不擁有任務生命週期。
-- Status：Task 6/7 Done（約 86%）；LB-005 Review。
-- Active task：LB-E6 In Progress；LB-E2、LB-E3、LB-E5 Review。
+- Status：Task 6/10 Done（60%）；LB-005 Review。
+- Active task：LB-008／LB-009／LB-010 與 LB-E6 In Progress；LB-E2、LB-E3、LB-E5 Review。
 - Dependencies：LB-E6 依賴 LB-E5、LB-005；與 tasks.md 相同。
 - Verification：ST-001／ST-004／ST-007／ST-012／ST-016／ST-017／ST-019／ST-021／ST-023／ST-024 已逐項核對，不宣稱今天重跑歷史測試。
 - Changes：基礎四項 Task、LB-E1、LB-E4 已依驗證與審查結案；正式 NAS 模型為 GPT-6 Luna。

@@ -52,7 +52,7 @@ Google 正在遷移 Gemini API key 機制；新 key 應直接從 Google AI Studi
 ```text
 AI_PROVIDER=openai
 OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-5.6-luna
+OPENAI_MODEL=gpt-6-luna
 ```
 
 OpenAI 路徑繼續使用 Responses API structured output，並通過相同的程式端知識卡驗證。

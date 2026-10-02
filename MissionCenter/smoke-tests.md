@@ -277,3 +277,16 @@
 - Date: 2026-10-02
 - Linked task ID: LB-001, LB-002, LB-003, LB-004, LB-E1, LB-E4
 - Run type: existing-evidence audit + metadata consistency checks
+
+
+## ST-026｜曲速索卡、固定冷知識與第一版候選映像
+
+- What was tested: 新話題檢索、明確索取卡片、短題「曲速／快子」、GENERAL固定卡來源、1234句固定冷知識的問答與學習顯示、遮罩截斷邊界及模型缺欄位契約。
+- How it was tested: 先重現失敗再加回歸；fresh Python 3.11鎖定環境的pip check、compileall、完整pytest branch coverage與離線evaluation；三輪CodeRabbit、Luna內容逐卡對題與後续對話邊界唯讀複核。NAS候選映像另跑24組synthetic問答，其中15組確定走本地卡片路徑、9組真實GPT-6 Luna API；沒有傳送LINE訊息給使用者。
+- Observed result: fresh完整1223 tests PASS，1 warning，coverage82.82%；離線1234卡／30題契約PASS，未做online評估。CodeRabbit 4 issues：3有效修正、1表格空行誤報以連續25–31行駁回。所有1234卡唯一非空固定笑話與各label顯示檢查PASS；卡片內容先錯配的批次已逐ID修正。
+- NAS candidate: source commit `dfa155422f7be7b5752d68f23fb886e3017a0007`，image `sha256:036439392c42`（短ID；完整image ID待發布紀錄回讀），24/24問答通過；130檔與44個鎖定依賴一致。Git archive依core.autocrlf匯出CRLF，先按文字換行正規化確認Git blob一致，再以artifact原始bytes驗映像，不把換行差當作來源不同。
+- Build recovery: 正常Dockerfile拉取Docker Hub pinned base遭registry逾時；改從NAS既有`41bb5a96fc4f…`應用映像建立本地overlay，更新完整package/src/data/scripts/assets；原有依賴與鎖檔逐項版本一致，pip check及候選image契約PASS，主Dockerfile未改。尚未切正式容器。
+- Result: Pass（此checkpoint）；使用者追加LB-010全面抓蟲，後續玩家P2泛追問修補未納入此image／1223測試證據，最終版本另記ST-027。手機LINE實機、真實網路重連及GPT-6 Luna完整30題online評估未重跑。
+- Date: 2026-10-02
+- Linked task ID: LB-008, LB-009
+- Run type: regression + external code review + offline data contracts + NAS candidate live-provider probes
