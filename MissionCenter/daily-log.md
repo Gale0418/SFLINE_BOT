@@ -109,3 +109,5 @@
 - LB-008、LB-009、LB-010 已由 In Progress 轉 Review（不標 Done）；Task 數為 6/10 Done。六題評估 label 修正已完成，剩正式評審與 GPT-6 Luna 新版 30 題線上評估。GPT-6 Luna 手機 E2E、完整 30 題線上評估、正式報告／簡報與 15 分鐘演練未做且排除本輪 deliverables。
 
 - 2026-10-02 正式發布檢查點：a3078f1 新映像已部署，1259 tests／83.23% coverage及NAS健康、131檔／44依賴、private0700／DB0600通過；ngrok原ID保留。LB-009／LB-010由Review結案，LB-008待main推送與精確SHA CI對帳；Task 8/10 Done（80%）。詳見ST-028。
+
+- 2026-10-02 ST-029：main `fa11654e8c52f425ce18cb74910e2d59d24c1772` 的Main CI1269 tests／83.99%coverage與同SHA Release certification成功；LB-008／LB-E3由Review結案，Task9/10Done（90%）。其後只改結案文件與metadata，runtime仍a3078f1。

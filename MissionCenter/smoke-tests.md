@@ -312,3 +312,12 @@
 - HTTP: NAS loopback health/ready 200；使用者電腦從外部HTTPS檢查health/ready 200、1234卡／300題、媒體HEAD 200 image/jpeg。NAS宿主curl對公開端點請求失敗，不冒稱該連線路徑通過；外部端點實測結果與Bot runtime健康各自驗證。
 - Recovery: 正常registry拉取逾時，改用NAS已存在且44鎖定依賴完全相同的基底overlay，更新完整package/src/data/scripts/assets後驗收，主Dockerfile未改。首次source backup因舊checkout缺少eval CSV在切bot前停止；修正明確既有檔案allowlist並chmod600後重試成功。驗證helper的stdin/curl格式問題另存失敗紀錄，修正工具後驗證通過，沒有因此修改已凍結產品程式。
 - Result: 程式、審查與正式NAS發布PASS；GitHub推送/同SHA CI由後續對帳補記。GPT-6 Luna手機E2E、新完整30題線上評估、正式報告簡報/15分鐘演練未重跑；deliverables與所有審查秘密暫存不提交。
+
+## ST-029｜GitHub main 精確 SHA 發布對帳
+
+- Date: 2026-10-02；Linked task ID: LB-008, LB-E3。
+- Published head: `fa11654e8c52f425ce18cb74910e2d59d24c1772`；由origin main正常fast-forward推送，未建立PR或工作分支。README與MissionCenter已於推送前更新，deliverables／reports／秘密／審查暫存沒有提交。
+- Main CI: [36967972808](https://github.com/Gale0418/SFLINE_BOT/actions/runs/36967972808) success；Linux完整 **1269 passed、390.31秒、83.99% branch coverage**；鎖定依賴、pip check、compileall、離線1234卡／30題契約全部通過。Windows1259＋10skip的限制已由這個Linux完整執行另行補證。
+- Release certification: [36968503669](https://github.com/Gale0418/SFLINE_BOT/actions/runs/36968503669) success；工作流唯讀checkout剛通過測試的同SHA，GPT-6 Luna與題庫／工作流契約通過。
+- Runtime alignment: 正式NAS image revision為a3078f1；與此published head的差異只在README／MissionCenter，131個runtime內容與44個鎖定依賴保持一致。後續結案也只改文件／任務metadata，不混稱重新跑API或重新build執行碼。
+- Result: 發布對帳PASS。LB-008及LB-E3經Review結案，Task9/10Done（90%）；剩餘LB-005的正式手機評審與其他Epic人工成果不冒稱完成。最後文件提交的latest-main CI由外部對帳再確認，不以自我引用SHA無限產生提交。

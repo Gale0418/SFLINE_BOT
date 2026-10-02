@@ -54,3 +54,5 @@
 - GitHub參考限定官方現成專案：[LINE Python SDK Flask範例](https://github.com/line/line-bot-sdk-python/blob/master/examples/flask-echo/app_with_handler.py)、[OpenAI Python SDK](https://github.com/openai/openai-python)。對照簽章驗證、短Webhook路徑、明確timeout/retry與client資源回收；不用範例的簡化同步echo取代現有背景dispatch與持久化保護。
 
 - 2026-10-02 正式發布檢查點：a3078f1 新映像已部署，1259 tests／83.23% coverage及NAS健康、131檔／44依賴、private0700／DB0600通過；ngrok原ID保留。LB-009／LB-010由Review結案，LB-008待main推送與精確SHA CI對帳；Task 8/10 Done（80%）。詳見ST-028。
+
+- 2026-10-02 ST-029：main `fa11654e8c52f425ce18cb74910e2d59d24c1772` 的Main CI1269 tests／83.99%coverage與同SHA Release certification成功；LB-008／LB-E3由Review結案，Task9/10Done（90%）。其後只改結案文件與metadata，runtime仍a3078f1。

@@ -297,7 +297,7 @@ Release certification 只有 `contents: read`，不會自己 commit、push main 
 
 ### 2026-10-02 問答與卡片更新
 
-- OpenAI 部署設定為 `gpt-6-luna`。候選映像已完成 131 個 runtime 檔與 44 項鎖定依賴逐項 parity，以及 6 項 NAS POSIX checks；正式部署正在進行，尚待健康與部署結果確認。main 尚未 push，GitHub CI 狀態未知。
+- OpenAI 部署設定為 `gpt-6-luna`。候選映像已完成 131 個 runtime 檔與 44 項鎖定依賴逐項 parity，以及 6 項 NAS POSIX checks；正式新映像已部署，healthy、內外 health/ready 與媒體端點通過。main 已發布，Main CI與Release certification成功。
 - 新話題優先用本次問題檢索；指代追問可跨過完整的泛型承接句延續最近主題，遇到未知的新主題就停止回溯，避免更舊話題的卡片污染。
 - 「給我／交出某主題的相關卡片」可直接呈現已收錄內容，完整題目中的文字保留；一般知識卡也能顯示固定來源與吐槽。
 - 1234 張卡各有一句固定 `cold_joke`，以前綴「冷知識:」顯示嘴賤網友式冷笑話，問答卡與學習短講共用同一句。科幻與未實現構想維持原分類，笑話不加入模型證據，也不額外呼叫 API。
@@ -305,4 +305,5 @@ Release certification 只有 `contents: read`，不會自己 commit、push main 
 
 `deliverables/`、報告產物、秘密與審查暫存檔不納入上傳。
 
-- 2026-10-02 正式發布檢查點：a3078f1 新映像已部署，1259 tests／83.23% coverage及NAS健康、131檔／44依賴、private0700／DB0600通過；ngrok原ID保留。LB-009／LB-010由Review結案，LB-008待main推送與精確SHA CI對帳；Task 8/10 Done（80%）。詳見ST-028。
+
+- 2026-10-02 最終發布對帳：main `fa11654e8c52f425ce18cb74910e2d59d24c1772` 的 Main CI與Release certification成功（Linux1269 passed、83.99%coverage）；LB-008經Review結案、Task9/10 Done（90%）。code a3078f1與其後文件提交的執行內容相同，正式NAS已healthy。現行狀態以tasks.md及ST-029為準。

@@ -2,7 +2,7 @@
 
 ## Summary
 
-2026-10-02 目前檢查點：10 個 Task 中 8 個 Done（80%）；LB-008 維持 Review，LB-009／LB-010 已 Done，LB-E6 為 In Progress。百分比只計算 Task，並非專題完成率。候選版 131 個 runtime 檔與 44 項鎖定依賴 parity 通過，6 項 NAS POSIX checks 通過；source `a3078f1cf7139b1a0b01d6c9359af468ae5f3e4d` 完整驗證為 1259 passed、10 skipped、1 warning、83.23% branch coverage，pip check、compileall 與離線評估通過。main 未 push、GitHub CI 狀態未知，正式 NAS 新映像已部署並驗證 healthy；內外 health/ready 及媒體端點均回 200。
+2026-10-02 目前檢查點：10 個 Task 中 9 個 Done（90%）；LB-008／LB-009／LB-010 已 Done，LB-E6 為 In Progress。百分比只計算 Task，並非專題完成率。候選版 131 個 runtime 檔與 44 項鎖定依賴 parity 通過，6 項 NAS POSIX checks 通過；source `a3078f1cf7139b1a0b01d6c9359af468ae5f3e4d` 完整驗證為 1259 passed、10 skipped、1 warning、83.23% branch coverage，pip check、compileall 與離線評估通過。main 已發布，Main CI與Release certification成功，正式 NAS 新映像已部署並驗證 healthy；內外 health/ready 及媒體端點均回 200。
 
 ## Completed evidence
 
@@ -14,18 +14,14 @@
 
 ## Unfinished
 
-- LB-008：等待正式評審、main push／同 SHA GitHub CI 與發布版本的 GitHub 精確 SHA 對帳。
-- LB-009：已依 ST-028 的完整回歸與正式部署證據結案。
-- LB-010：已經 Review 複核，確認問題全數處置並依 ST-028 結案。
 - LB-E2／LB-005：既有手機實機證據待正式評審複核；GPT-6 Luna 手機 E2E 尚未重跑。
-- LB-E3：候選 runtime parity 與 POSIX 檢查已通過；正式 NAS 執行碼已對齊；main、CI 的精確 SHA 待推送核對。
 - LB-E5：六題 label 已修；GPT-6 Luna 新版完整 30 題線上評估尚未執行，既有評估仍待正式評審。
 - LB-E6：正式報告、簡報及 15 分鐘演練尚未完成；這些排除於本輪 deliverables。
 - Mission Center 插件 freshness 尚未通過；摘要依 canonical `tasks.md` 重建，不能把摘要正確等同插件 freshness 成功。
 
 ## Historical evidence
 
-過往完整測試、coverage、手機 E2E、Google 31B 評估與 GPT-6 Luna NAS 切換的歷史結果，分別依 ST-014 至 ST-024 保留。此前「6/7（約 86%）」是較早檢查點；現行 Task 計數為 6/10（60%）。此前重新建立既有 image 的記錄也是歷史事件，不代表目前候選已正式發布。PPT v11 及擴充稿的歷史驗收不代表本輪正式報告／簡報交付已完成。
+過往完整測試、coverage、手機 E2E、Google 31B 評估與 GPT-6 Luna NAS 切換的歷史結果，分別依 ST-014 至 ST-024 保留。此前「6/7（約 86%）」是較早檢查點；現行 Task 計數為 9/10（90%）。此前重新建立既有 image 的記錄也是歷史事件，不代表當時已發布新版；本輪正式發布另見 ST-028／ST-029。PPT v11 及擴充稿的歷史驗收不代表本輪正式報告／簡報交付已完成。
 
 ## Risks and interpretation
 
@@ -39,4 +35,5 @@ ST-014 至 ST-024 保留各自歷史執行證據。候選 131/44 parity 與 6 �
 
 發布紀錄要區分候選驗收與正式切換，也要分開標示每個 SHA 上實際執行過的離線、付費 API、手機與 NAS 檢查。對話審查的 finding 應以可重現證據判定；超出已觀察範圍的結論不要寫成永久保證。任務核對後更新 canonical 狀態與摘要，但不讓衍生摘要凌駕 tasks.md。
 
-- 2026-10-02 正式發布檢查點：a3078f1 新映像已部署，1259 tests／83.23% coverage及NAS健康、131檔／44依賴、private0700／DB0600通過；ngrok原ID保留。LB-009／LB-010由Review結案，LB-008待main推送與精確SHA CI對帳；Task 8/10 Done（80%）。詳見ST-028。
+
+- 2026-10-02 最終發布對帳：main `fa11654e8c52f425ce18cb74910e2d59d24c1772` 的 Main CI與Release certification成功（Linux1269 passed、83.99%coverage）；LB-008經Review結案、Task9/10 Done（90%）。code a3078f1與其後文件提交的執行內容相同，正式NAS已healthy。現行狀態以tasks.md及ST-029為準。
