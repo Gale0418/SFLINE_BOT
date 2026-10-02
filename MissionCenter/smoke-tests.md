@@ -290,3 +290,13 @@
 - Date: 2026-10-02
 - Linked task ID: LB-008, LB-009
 - Run type: regression + external code review + offline data contracts + NAS candidate live-provider probes
+
+## ST-027｜全面審查中間檢查點（非最終發布）
+
+- Date: 2026-10-02
+- Linked task ID: LB-008, LB-009, LB-010
+- Frozen revision: `8b50bcda83e5ea0480a470e3e791d1e0f62f8225`。
+- Observed result: fresh Python 3.11 完整 1239 passed、10 skipped、1 warning、branch coverage 82.50%；pip check、compileall、離線 1234 卡／30 題契約通過。Windows 跳過 POSIX 權限／symlink 案例，不視為通過；NAS 候選容器六項真實 Linux 權限、symlink、FD 錨定與收尾檢查通過。
+- Live questions: 候選問答 23/25。曲速卡 `tu001`／`sw166` 被測試誤限定為 `sw165`，修正接受已收錄曲速集合；另一筆「給我相關卡片」在泛型追問後失去主題是有效 P2，後續已修。此結果不作發布通過證據。
+- Review: 三領域 Luna 專家查證 GENERAL grounding、資料權限、備份路徑邊界、泛型追問、佇列容量與效能問題；CodeRabbit 第四輪 116 檔指出 durable per-key admission 缺口，後續已修。合成 1000 筆同 key pump 中位數由約 100ms 降到 2.427ms；不是所有負载或端到端效能保證。
+- Result: 中間檢查點。`8d5a96f`／`21ec0b9` 的後續完整 pytest 因有效新修補而停止，皆為 superseded partial，不列通過；最終證據另記 ST-028。正式 bot 尚未切換新版。

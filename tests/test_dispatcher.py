@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import sqlite3
+import sys
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 from linebot.v3.webhooks import Event
@@ -346,6 +348,148 @@ def test_restart_quarantines_unknown_processing_job_without_replaying(tmp_path):
     with pytest.raises(ValueError, match="not replayable"):
         requeue_interrupted(path, "evt-interrupted")
     restarted.shutdown(wait=True)
+
+
+def test_requeue_interrupted_enforces_global_limit_atomically(tmp_path):
+    path = tmp_path / "requeue-global.sqlite3"
+    dispatcher = DurableEventDispatcher(path, max_workers=1)
+    dispatcher.shutdown(wait=True)
+    now = time.time()
+    active_payload = _line_event("evt-active-global", user_id="U-active").to_json()
+    interrupted_payload = _line_event("evt-replay-global", user_id="U-replay").to_json()
+    with sqlite3.connect(path) as db:
+        db.executemany(
+            "INSERT INTO webhook_jobs_v1 "
+            "(event_id,payload,state,attempts,created_at,updated_at) "
+            "VALUES (?,?,?,0,?,?)",
+            (
+                ("evt-active-global", active_payload, "pending", now, now),
+                ("evt-replay-global", interrupted_payload, "interrupted", now, now),
+            ),
+        )
+
+    with pytest.raises(ValueError, match="global durable admission limit"):
+        requeue_interrupted(path, "evt-replay-global", max_persisted_jobs=1)
+    with sqlite3.connect(path) as db:
+        row = db.execute(
+            "SELECT state,conversation_key FROM webhook_jobs_v1 "
+            "WHERE event_id='evt-replay-global'"
+        ).fetchone()
+    assert row == ("interrupted", None)
+
+
+def test_requeue_interrupted_enforces_per_key_limit_atomically(tmp_path):
+    path = tmp_path / "requeue-key.sqlite3"
+    dispatcher = DurableEventDispatcher(path, max_workers=1)
+    dispatcher.shutdown(wait=True)
+    now = time.time()
+    active = _line_event("evt-active-key", user_id="U-shared")
+    interrupted = _line_event("evt-replay-key", user_id="U-shared")
+    with sqlite3.connect(path) as db:
+        db.executemany(
+            "INSERT INTO webhook_jobs_v1 "
+            "(event_id,payload,state,attempts,created_at,updated_at,conversation_key) "
+            "VALUES (?,?,?,0,?,?,?)",
+            (
+                (
+                    active.webhook_event_id,
+                    active.to_json(),
+                    "pending",
+                    now,
+                    now,
+                    "U-shared",
+                ),
+                (
+                    interrupted.webhook_event_id,
+                    interrupted.to_json(),
+                    "interrupted",
+                    now,
+                    now,
+                    None,
+                ),
+            ),
+        )
+
+    with pytest.raises(ValueError, match="conversation durable admission limit"):
+        requeue_interrupted(
+            path,
+            interrupted.webhook_event_id,
+            max_persisted_jobs=4,
+            max_persisted_per_key=1,
+            key_fn=lambda event: event.source.user_id,
+        )
+    with sqlite3.connect(path) as db:
+        state, key = db.execute(
+            "SELECT state,conversation_key FROM webhook_jobs_v1 WHERE event_id=?",
+            (interrupted.webhook_event_id,),
+        ).fetchone()
+    assert (state, key) == ("interrupted", None)
+
+
+def test_requeue_cli_restores_current_key_and_uses_app_admission_limits(
+    monkeypatch, tmp_path, capsys
+):
+    from scripts import requeue_webhook
+    from eternal_polaris.app import _event_key
+
+    path = tmp_path / "requeue-cli-legacy.sqlite3"
+    event = _line_event("evt-cli-requeue", user_id="U-cli")
+    now = time.time()
+    with sqlite3.connect(path) as db:
+        db.execute(
+            "CREATE TABLE webhook_jobs_v1 ("
+            "event_id TEXT PRIMARY KEY,payload TEXT,state TEXT NOT NULL,"
+            "attempts INTEGER NOT NULL DEFAULT 0,created_at REAL NOT NULL,"
+            "updated_at REAL NOT NULL,error_type TEXT)"
+        )
+        db.execute(
+            "INSERT INTO webhook_jobs_v1 "
+            "(event_id,payload,state,attempts,created_at,updated_at) "
+            "VALUES (?,?,'interrupted',1,?,?)",
+            (event.webhook_event_id, event.to_json(), now, now),
+        )
+    synthetic_secret = "synthetic-cli-secret"
+    monkeypatch.setattr(
+        requeue_webhook,
+        "Settings",
+        SimpleNamespace(
+            from_env=lambda: SimpleNamespace(
+                webhook_worker_threads=1,
+                webhook_queue_capacity=1,
+                webhook_max_pending_per_key=0,
+                line_channel_secret=synthetic_secret,
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "requeue_webhook",
+            "--db",
+            str(path),
+            "--event-id",
+            event.webhook_event_id,
+            "--confirm-event-id",
+            event.webhook_event_id,
+            "--accept-duplicate-reply-risk",
+        ],
+    )
+
+    requeue_webhook.main()
+    with sqlite3.connect(path) as db:
+        state, key = db.execute(
+            "SELECT state,conversation_key FROM webhook_jobs_v1 WHERE event_id=?",
+            (event.webhook_event_id,),
+        ).fetchone()
+    output = capsys.readouterr().out
+    assert (state, key) == (
+        "pending",
+        _event_key(event, synthetic_secret),
+    )
+    assert event.webhook_event_id in output
+    assert synthetic_secret not in output
+    assert "U-cli" not in key
 
 
 def test_unknown_handler_failure_is_never_replayed(tmp_path):

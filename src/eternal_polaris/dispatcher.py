@@ -35,33 +35,89 @@ class RetryablePreReplyError(RuntimeError):
     """A proven pre-reply failure that is safe to execute again."""
 
 
-def requeue_interrupted(path: str | Path, event_id: str) -> None:
+def requeue_interrupted(
+    path: str | Path,
+    event_id: str,
+    *,
+    max_persisted_jobs: int | None = None,
+    max_persisted_per_key: int | None = None,
+    key_fn: EventKeyFunction | None = None,
+) -> None:
     """Explicitly requeue one quarantined event after an operator risk decision."""
+    if max_persisted_jobs is not None and max_persisted_jobs < 1:
+        raise ValueError("max_persisted_jobs must be positive")
+    if max_persisted_per_key is not None and max_persisted_per_key < 1:
+        raise ValueError("max_persisted_per_key must be positive")
+    if max_persisted_per_key is not None and key_fn is None:
+        raise ValueError("key_fn is required for per-key requeue admission")
     now = time.time()
     with closing(sqlite3.connect(Path(path), timeout=10, isolation_level=None)) as db:
         db.execute("PRAGMA busy_timeout=10000")
+        columns = {row[1] for row in db.execute("PRAGMA table_info(webhook_jobs_v1)")}
+        has_key_column = "conversation_key" in columns
+        if key_fn is not None and not has_key_column:
+            db.execute("ALTER TABLE webhook_jobs_v1 ADD COLUMN conversation_key TEXT")
+            db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_webhook_jobs_v1_state_key "
+                "ON webhook_jobs_v1(state, conversation_key)"
+            )
+            has_key_column = True
         db.execute("BEGIN IMMEDIATE")
-        row = db.execute(
-            "SELECT state,payload FROM webhook_jobs_v1 WHERE event_id=?",
-            (event_id,),
-        ).fetchone()
-        if row is None:
+        try:
+            row = db.execute(
+                "SELECT state,payload FROM webhook_jobs_v1 WHERE event_id=?",
+                (event_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError("event ID does not exist")
+            state, payload = row
+            if state != "interrupted" or not payload:
+                raise ValueError("event is not replayable interrupted work")
+
+            conversation_key: str | None = None
+            if key_fn is not None:
+                try:
+                    event = Event.from_json(payload)
+                    conversation_key = str(key_fn(event) or "").strip()
+                except Exception as exc:
+                    raise ValueError("interrupted event payload/key is invalid") from exc
+                if not conversation_key:
+                    conversation_key = f"anonymous:{event_id}"
+
+            if max_persisted_jobs is not None:
+                active = db.execute(
+                    "SELECT COUNT(*) FROM webhook_jobs_v1 "
+                    "WHERE state IN ('pending','queued','processing')"
+                ).fetchone()[0]
+                if active + 1 > max_persisted_jobs:
+                    raise ValueError("global durable admission limit reached")
+
+            if max_persisted_per_key is not None:
+                active_for_key = db.execute(
+                    "SELECT COUNT(*) FROM webhook_jobs_v1 "
+                    "WHERE state IN ('pending','queued','processing') "
+                    "AND (conversation_key=? OR conversation_key IS NULL)",
+                    (conversation_key,),
+                ).fetchone()[0]
+                if active_for_key + 1 > max_persisted_per_key:
+                    raise ValueError("conversation durable admission limit reached")
+
+            assignments = "state='pending',updated_at=?,error_type='OperatorRequeue'"
+            params: tuple[Any, ...] = (now,)
+            if has_key_column and conversation_key is not None:
+                assignments += ",conversation_key=?"
+                params += (conversation_key,)
+            changed = db.execute(
+                f"UPDATE webhook_jobs_v1 SET {assignments} "
+                "WHERE event_id=? AND state='interrupted'",
+                (*params, event_id),
+            ).rowcount
+            if changed != 1:
+                raise RuntimeError("event state changed while requeueing")
+            db.commit()
+        except Exception:
             db.rollback()
-            raise ValueError("event ID does not exist")
-        state, payload = row
-        if state != "interrupted" or not payload:
-            db.rollback()
-            raise ValueError("event is not replayable interrupted work")
-        changed = db.execute(
-            "UPDATE webhook_jobs_v1 "
-            "SET state='pending',updated_at=?,error_type='OperatorRequeue' "
-            "WHERE event_id=? AND state='interrupted'",
-            (now, event_id),
-        ).rowcount
-        if changed != 1:
-            db.rollback()
-            raise RuntimeError("event state changed while requeueing")
-        db.commit()
+            raise
 
 
 class EventDispatcher(Protocol):
