@@ -12,7 +12,7 @@
 - 開啟 LINE Use webhook，API 確認 active=true。30 題 Google 評估全部失敗，最小生成請求500，模型列表200。79 項離線測試通過。
 - Gemini 已完成 scripts/start_app.ps1 與 README 的程序限定 Google key 載入功能（request linebot-startup-20260908-01，cascade bfe6af07-ceb2-4237-a83c-80abc83b8024，已觀察完成 marker）。Codex 補修單行集合、來源必填與檔案型態驗證，已驗收前置邏輯。沒有第二個寫入者與其重疊修改。
 
-- Last organized: 2026-09-21
+- Last organized: 2026-10-02
 
 - Timestamp: 2026-09-08T15:51:42+08:00
   - Change: 依使用者要求，從38卡／116題擴充到50卡／150題，加入12張趣味科普卡、34題及10個新的隨機問句。
@@ -86,3 +86,17 @@
   - Change: 準備直接發布至 `main` 的收斂版本；將本機最終簡報、逐頁講稿、插圖及簡報產生器加入忽略規則，並把先前已追蹤的簡報交付物與簡報文件排定從目前 Git tree 移除。另依 CodeRabbit 審查修正續跑評估輸入雜湊綁定，以及未標籤分組付款卡號遮罩。
   - Reason: 避免含講者姓名的簡報出現在 GitHub 目前版本，同時防止續跑結果混用不同資料，並補齊敏感號碼外送前的遮罩邊界。
   - Impact: 本機簡報仍完整保留但不會被加入 commit；1191 項 pytest 與靜態／安全／依賴檢查通過；CodeRabbit 兩項有效 Major 已修正且聚焦複審為 0 項。Git 歷史未做破壞性改寫，舊 commit 內既有簡報仍屬另行處理範圍。
+
+## 2026-10-02
+
+- Timestamp: 2026-10-02T10:03:36+08:00
+  - Change: LB-007 將本機與 NAS 的 `.env` 設為 `OPENAI_MODEL=gpt-6-luna`、`AI_PROVIDER=openai`，以既有映像重新建立 `eternal-polaris-bot`。
+  - Reason: 使用者明確要求切換 GPT-6 Luna 並重啟 NAS Docker 機器人；容器 restart 不會重新載入 env_file，故使用 Compose force-recreate。
+  - Impact: NAS 真實模型探針、healthy、內外 `/health` 與 `/ready` 通過；映像 SHA、資料卷及 ngrok 容器 ID 保留。NAS 環境設定備份權限 600；未修改原始碼、重建 image 或重跑歷史評估。詳見 ST-024。此條原誤置於 9 月區段，本次移入正確日期，內容保留。
+
+- Date: 2026-10-02
+  - Change: 依 ST-001～ST-024 的具體驗證與 Luna 唯讀交叉核對，LB-001～LB-004 由 Review 結案；LB-E1 經 Review 後結案，LB-E4 依既有可靠性審查結案，LB-E2 改為 Review。更新專案階段、剩餘工作與收尾摘要。
+  - Reason: 使用者指出 Mission Center 落後；早期 Review 未收斂，摘要仍描述 M1／待遷移金鑰。Rust sync 更新 progress/focus 後，status 仍回 stale 且 brief/working-set 保持舊內容；以 canonical files 重新產生衍生摘要，保留 tasks.md 的唯一狀態來源。
+  - Impact: Task 完成數 6/7（約 86%），不是整份專題完成率。評審複核、正式交付 SHA／CI 對齊、六題評估契約與報告簡報／15 分鐘演練仍未完成；GPT-6 Luna 尚未重跑手機 E2E 或 30 題評估。本次只對帳文件，未改機器人或重跑應用測試。
+
+- 本日追加 LB-008／LB-009：曲速卡片索取與新話題检索修正，全部 1234 張固定「冷知識:」嘴賤網友式吐槽；仍沿用使用者 main 發布、兔子每小時最多三次且每次150檔、排除報告產物與 Docker 更新授權。首次137檔 CodeRabbit完成1個有效發布驗證問題，已修正；最終驗收未完成前不標 Done。

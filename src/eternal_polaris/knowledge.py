@@ -105,6 +105,9 @@ class KnowledgeBase:
         cards: list[KnowledgeCard] = []
         for index, item in enumerate(raw):
             try:
+                cold_joke = item.get("cold_joke", "")
+                if not isinstance(cold_joke, str) or len(cold_joke.strip()) > 100:
+                    raise ValueError("冷笑話必須是最多100字的文字")
                 card = KnowledgeCard(
                     id=str(item["id"]).strip(),
                     canonical_question=str(item["canonical_question"]).strip(),
@@ -113,6 +116,7 @@ class KnowledgeBase:
                     label=ScienceLabel(item["label"]),
                     source_name=str(item["source_name"]).strip(),
                     source_url=str(item["source_url"]).strip(),
+                    cold_joke=cold_joke.strip(),
                 )
             except (KeyError, TypeError, ValueError) as exc:
                 raise KnowledgeError(f"第 {index + 1} 張知識卡格式無效") from exc
@@ -156,11 +160,11 @@ class KnowledgeBase:
         if limit < 1:
             return ()
         normalized = _normalize(question)
-        if len(normalized) < 3:
-            return ()
         if normalized in self._exact_matches:
             card = self._exact_matches[normalized]
             return (card,) if card is not None else ()
+        if len(normalized) < 3:
+            return ()
         normalized = _bounded_query(normalized)
         contained = self._contained_cards(normalized)
         if contained:
@@ -245,11 +249,10 @@ class KnowledgeBase:
         if any(phrase in raw for phrase in _BLOCKED_DIRECT_INTENTS):
             return None
         normalized = _normalize(question)
-        if len(normalized) < 3:
-            return None
-
         if normalized in self._exact_matches:
             return self._exact_matches[normalized]
+        if len(normalized) < 3:
+            return None
         normalized = _bounded_query(normalized)
         contained = self._contained_cards(normalized)
         if len(contained) == 1:
@@ -267,7 +270,11 @@ class KnowledgeBase:
         return None
 
     def validate_answer(self, answer: BotAnswer) -> BotAnswer:
-        if answer.label in (ScienceLabel.CHAT, ScienceLabel.GENERAL, ScienceLabel.UNCERTAIN):
+        local_general_card = (
+            answer.label is ScienceLabel.GENERAL
+            and answer.route in ("local", "model_grounded") and bool(answer.source_ids)
+        )
+        if answer.label in (ScienceLabel.CHAT, ScienceLabel.GENERAL, ScienceLabel.UNCERTAIN) and not local_general_card:
             if not answer.answer.strip() or len(answer.answer) > 700 or answer.source_ids:
                 raise KnowledgeError("無引用回答必須有簡短內容，且不得冒用知識卡來源")
             return answer

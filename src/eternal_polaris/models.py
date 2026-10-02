@@ -34,6 +34,7 @@ class KnowledgeCard:
     label: ScienceLabel
     source_name: str
     source_url: str
+    cold_joke: str = ""
 
 
 @dataclass(frozen=True, slots=True)

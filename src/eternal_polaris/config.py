@@ -47,7 +47,7 @@ class Settings:
     line_channel_access_token: str
     ai_provider: str = "openai"
     gemini_api_key: str = ""
-    openai_model: str = "gpt-5.6-luna"
+    openai_model: str = "gpt-6-luna"
     gemini_model: str = "gemma-4-26b-a4b-it"
     openai_timeout_seconds: float = 5.0
     app_port: int = 5000
@@ -91,7 +91,7 @@ class Settings:
         else:
             if not self.openai_api_key.strip():
                 raise ConfigurationError("AI_PROVIDER=openai 需要 OPENAI_API_KEY")
-            openai_model = self.openai_model.strip() or "gpt-5.6-luna"
+            openai_model = self.openai_model.strip() or "gpt-6-luna"
             if _is_google_model(openai_model):
                 raise ConfigurationError("OPENAI_MODEL 不可使用 gemma-* 或 gemini-* 模型 ID")
             object.__setattr__(self, "ai_provider", "openai")
@@ -165,7 +165,7 @@ class Settings:
                 line_channel_access_token=os.environ["LINE_CHANNEL_ACCESS_TOKEN"].strip(),
                 ai_provider=provider,
                 gemini_api_key=gemini_key,
-                openai_model=os.getenv("OPENAI_MODEL", "gpt-5.6-luna").strip() or "gpt-5.6-luna",
+                openai_model=os.getenv("OPENAI_MODEL", "gpt-6-luna").strip() or "gpt-6-luna",
                 gemini_model=(
                     os.getenv("GEMINI_MODEL", "gemma-4-26b-a4b-it").strip()
                     or "gemma-4-26b-a4b-it"

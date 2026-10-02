@@ -230,6 +230,50 @@ def test_model_prompt_uses_bounded_relevant_knowledge_context(knowledge):
     assert "只能引用下列 ID" in prompt_text
 
 
+def test_current_explicit_topic_takes_priority_over_old_history_cards(knowledge):
+    tachyon = knowledge.by_id["sw169"]
+    warp = knowledge.by_id["sw165"]
+    client = FakeGoogleClient({"label": "general", "answer": "曲速的理論尚未實現。", "source_ids": []})
+    service = OpenAIAnswerService("test", "gemma-4-26b-a4b-it", knowledge, client=client)
+    service.answer(
+        warp.canonical_question,
+        (Exchange("超光速移動的辦法", "可以看看快子相關概念。"),),
+    )
+
+    prompt = client.body["contents"][0]["parts"][0]["text"]
+    assert f"[{warp.id}]" in prompt
+    assert f"[{tachyon.id}]" not in prompt
+
+
+def test_explicit_card_request_with_history_returns_matching_cards(knowledge):
+    warp_cards = {"tu001", "sw165", "sw166"}
+    assert warp_cards <= knowledge.by_id.keys()
+    fallback = RecordingProvider(BotAnswer(ScienceLabel.CHAT, "模型回覆", ()))
+    service = HybridAnswerService(fallback, knowledge)
+
+    answer = service.answer(
+        "快交出曲速的相關卡片",
+        (Exchange("超光速移動的辦法", "快子是理論粒子。"),),
+    )
+
+    assert answer.route == "model_grounded"
+    assert warp_cards <= set(answer.source_ids)
+    assert "快子真的能永遠跑得比光快嗎？" not in answer.answer
+    assert fallback.calls == 0
+
+
+@pytest.mark.parametrize("question", ["你有幾張卡片？", "哪些卡片沒有圖片？"])
+def test_general_card_inventory_question_still_uses_model(knowledge, question):
+    fallback_answer = BotAnswer(ScienceLabel.CHAT, "我可以幫你查。", (), route="model")
+    fallback = RecordingProvider(fallback_answer)
+    service = HybridAnswerService(fallback, knowledge)
+
+    answer = service.answer(question, (Exchange("聊聊太空", "好呀。"),))
+
+    assert answer is fallback_answer
+    assert fallback.calls == 1
+
+
 def test_model_cannot_cite_card_outside_retrieved_evidence(knowledge):
     first, unrelated = knowledge.cards[0], knowledge.cards[-1]
     client = FakeGoogleClient(
@@ -371,3 +415,64 @@ def test_open_topic_answers_render_without_fake_sources(knowledge, label):
     assert label in client.body["contents"][0]["parts"][0]["text"]
     with pytest.raises(KnowledgeError):
         knowledge.validate_answer(BotAnswer(ScienceLabel(label), "未查證的回答", (knowledge.cards[0].id,)))
+
+
+def test_redaction_masks_card_crossing_truncation_boundary():
+    from eternal_polaris.answer_service import _redact_sensitive
+
+    text = _redact_sensitive("文" * 990 + " 4111111111111111")
+    assert "411111" not in text
+    assert len(text) <= 1000
+
+
+@pytest.mark.parametrize("payload", [
+    {"answer": "正常。", "label": "chat"},
+    {"answer": "正常。", "source_ids": []},
+    {"answer": "正常。", "label": [], "source_ids": []},
+    {"answer": "正常。", "label": "invalid", "source_ids": []},
+])
+def test_malformed_model_fields_raise_contract_error(knowledge, payload):
+    service = OpenAIAnswerService("test", "gpt-6-luna", knowledge, client=FakeResponses(payload))
+    with pytest.raises((TypeError, ValueError)):
+        service._validate_raw_answer(payload, allowed_source_ids=frozenset())
+
+
+@pytest.mark.parametrize("question", ["那是哪一年？", "那它的用途呢？"])
+def test_anaphoric_followup_uses_latest_topic_not_weak_question_neighbors(knowledge, question):
+    service = OpenAIAnswerService("test", "gpt-6-luna", knowledge, client=FakeResponses({}))
+    _, ids = service._prompt(question, (
+        Exchange("曲速引擎", "談過曲速。"),
+        Exchange("冥王星為什麼被降級，表面真的有愛心嗎？", "談過冥王星。"),
+    ))
+    assert ids == frozenset({"sw012"})
+
+
+def test_followup_prefix_with_named_new_topic_still_changes_subject(knowledge):
+    service = OpenAIAnswerService("test", "gpt-6-luna", knowledge, client=FakeResponses({}))
+    _, ids = service._prompt("那曲速引擎呢？", (Exchange("快子", "快子是假想粒子。"),))
+    assert "sw165" in ids
+    assert "sw169" not in ids
+
+
+@pytest.mark.parametrize("card_id", [
+    "sw280", "sw240", "sw1061", "sw711", "sw784", "sw676",
+    "sw142", "sw973", "sw601", "sw510", "sw929", "sw499",
+])
+def test_random_full_question_card_requests_with_history(knowledge, card_id):
+    fallback = RecordingProvider(BotAnswer(ScienceLabel.CHAT, "不應呼叫模型", ()))
+    service = HybridAnswerService(fallback, knowledge)
+    card = knowledge.by_id[card_id]
+    answer = service.answer(f"給我{card.canonical_question}的相關卡片", (Exchange("快子", "前面聊過快子。"),))
+    assert answer.source_ids == (card_id,)
+    assert card.canonical_question in answer.answer
+    assert len(answer.answer) <= 700
+    assert fallback.calls == 0
+
+
+def test_unknown_latest_topic_blocks_reviving_older_named_topic(knowledge):
+    service = OpenAIAnswerService("test", "gpt-6-luna", knowledge, client=FakeResponses({}))
+    _, ids = service._prompt("那它的用途呢？", (
+        Exchange("曲速引擎", "曲速尚未實現。"),
+        Exchange("未收錄的XYZQ真菌裝置用途是什麼？", "請提供背景。"),
+    ))
+    assert not ids

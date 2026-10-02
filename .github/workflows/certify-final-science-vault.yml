@@ -152,7 +152,7 @@ jobs:
           readme = (root / 'README.md').read_text(encoding='utf-8')
           assert 'AI_PROVIDER' in config_text
           assert 'gemma-4-26b-a4b-it' in config_text
-          assert 'gpt-5.6-luna' in config_text
+          assert 'gpt-6-luna' in config_text
           assert 'generativelanguage.googleapis.com' in answer_text
           assert 'x-goog-api-key' in answer_text
           assert '不做執行時跨供應商' in readme

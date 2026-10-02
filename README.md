@@ -9,7 +9,7 @@
 自由問答現在支援兩條模型路徑：
 
 - **Google AI Studio / Gemini Developer API**：Demo 預設 `gemma-4-26b-a4b-it`。Google 官方同時列出 26B A4B 與 31B IT；本專案依 2026-09-08 的本機成功紀錄選 26B，仍須在正式展示當日重跑 smoke test。
-- **OpenAI**：若你已有可用額度，可切回 `gpt-5.6-luna`。
+- **OpenAI**：若你已有可用額度，可使用 `gpt-6-luna`。
 
 設定方式：
 
@@ -46,7 +46,7 @@ Gemma 4 會使用官方 `systemInstruction` 與 `minimal` thinking，並要求�
 ```text
 AI_PROVIDER=openai
 OPENAI_API_KEY=你的_OpenAI_Key
-OPENAI_MODEL=gpt-5.6-luna
+OPENAI_MODEL=gpt-6-luna
 ```
 
 兩條路徑都使用相同的 1234 張人工知識卡、相同 JSON 輸出契約與相同程式端驗證；OpenAI 路徑使用 Responses API structured output。模型呼叫只會收到與本題最相關、最多 12 張的本機證據卡，而不是把整座 1234 卡知識庫塞進每次請求；程式也會拒絕模型引用本題未提供的卡片 ID。
@@ -176,7 +176,7 @@ LINE_CHANNEL_ACCESS_TOKEN=...
 
 AI_PROVIDER=openai
 OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-5.6-luna
+OPENAI_MODEL=gpt-6-luna
 ```
 
 若金鑰仍存放在專案外的 `OWO.TXT`／`NGROK.txt`，一次性遷移工具現在接受 `GEMINI_API_KEY`、`GOOGLE_API_KEY` 或 `OPENAI_API_KEY`：
@@ -288,3 +288,16 @@ Release certification 只有 `contents: read`，不會自己 commit、push main 
 - 模型請求前遮罩常見電子郵件、台灣手機號碼、身分證號、姓名、具個資語境的生日與付款卡號、含門牌的完整街道地址，以及 API key／token；公開場館、歷史日期與科學長數字不會被誤遮罩。每位使用者與全域都有短期滑動視窗限流，另設全域每日模型請求保險絲。
 - 科學類模型回答只顯示所引用知識卡中的已審核事實；一般閒聊與無法確認的內容不得冒用來源。
 - 啟動時驗證最壞排隊時間是否仍落在保守的 reply-token 安全預算內。
+
+每張知識卡附有固定一句相關吐槽，顯示為「冷知識:」。笑話只在呈現卡片與學習短講時附加，不送入模型的科學證據，也不新增即時生成請求。
+
+
+### 2026-10-02 問答與卡片更新
+
+- 現行 OpenAI 預設模型為 `gpt-6-luna`；NAS 環境設定已切換，後續新版映像依驗收證據發布。
+- 新話題優先用本次問題檢索；指代追問只承接相鄰最近主題，避免更舊話題的卡片污染。
+- 「給我／交出某主題的相關卡片」可直接呈現已收錄內容，完整題目中的文字保留；一般知識卡也能顯示固定來源與吐槽。
+- 1234 張卡各有一句固定 `cold_joke`，以前綴「冷知識:」顯示嘴賤網友式冷笑話，問答卡與學習短講共用同一句。科幻與未實現構想維持原分類，笑話不加入模型證據，也不額外呼叫 API。
+- CodeRabbit 三輪審查各覆蓋137、103、103檔，4 issues中3項有效已修、1項表格空行以原檔駁回。後續隨機索卡與追問修正另有Luna唯讀複核及回歸；完整發布驗收見 `MissionCenter/smoke-tests.md`。
+
+`deliverables/`、報告產物、秘密與審查暫存檔不納入上傳。

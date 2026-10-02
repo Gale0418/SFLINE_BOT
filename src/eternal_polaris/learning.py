@@ -291,7 +291,10 @@ class LearningManager:
             card, q = self.knowledge.by_id.get(card_id), self.bank.by_id[qid]
             content = f"第 {s['lesson']+1}/5 段：{card.canonical_question if card else q.prompt}\n"
             if card:
-                content += "\n".join(card.facts) + f"\n來源：{card.source_url}\n"
+                content += "\n".join(card.facts)
+                if card.cold_joke:
+                    content += f"\n冷知識: {card.cold_joke}"
+                content += f"\n來源：{card.source_url}\n"
             content += f"\n先記住這個概念：{q.correct_text}。\n{q.explanation}\n依據：{q.source_url}\n\n「若有哪裡不明白，就停下來問我。想清楚了，再試試下方的理解題。」"
             return prefix + heading + content, (button("理解題", "check"),) + common
         if phase in ("check", "exam"):

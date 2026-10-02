@@ -252,3 +252,28 @@
 - Date: 2026-09-21
 - Linked task ID: LB-006
 - Run type: metadata repair + clean-environment CI simulation + isolated external code review + automated regression
+
+## ST-024｜GPT-6 Luna 切換與 NAS 容器重啟
+
+- What was tested: LB-007 的模型相容性、實際運行設定、容器重建、持久化掛載及內外健康端點。
+- How it was tested: 核對 OpenAI 官方 `https://developers.openai.com/api/docs/models/gpt-6-luna`；先在舊容器用現有 AnswerService、5 秒 timeout、Responses JSON schema 與 reasoning=none 執行閒聊及科學兩題。備份 NAS `.env` 後只改模型與 provider，執行 `docker compose -f /volume1/docker/eternal-polaris/app/deploy/nas/compose.yaml up -d --no-deps --no-build --pull never --force-recreate --timeout 60 bot`；回讀 inspect，在新容器依 Settings.from_env 實際回答科學題，並呼叫 NAS loopback 與固定 ngrok 的 `/health`、`/ready`。
+- Expected result: bot 使用 `openai / gpt-6-luna`、running/healthy；模型產生可解析且通過既有驗證的答案；資料卷與映像保持相同，ngrok 不重建；內外端點正常。
+- Observed result: 前置兩題成功，耗時 4.993／2.595 秒；新容器依實際環境設定成功回答星星閃爍題，route=model、label=general、耗時 6.186 秒。5 秒是既有 SDK timeout 設定，並非整次回答的絕對牆鐘上限。bot 新 ID `cfa4d067e201c675f1318792004c0554fbaba4b72a050500133eed82cda02cd9`，StartedAt=`2026-10-02T02:01:02.389462235Z`，running/healthy；image 保持 `sha256:41bb5a96fc4f0cd42c30e4d8308e2a7ce06b4217f72fddb096daac419dde20c4`，data/private 與 backups 掛載保留；ngrok ID 仍為 `99495bb52c61d53ed0d906ee3f4d33be4fb8e0ddba3f3bd013d4521916c9f87f`。內外 health/ready 皆正常，公開端點 HTTP 200，1234 卡、300 題。NAS 原設定備份為 `/volume1/docker/eternal-polaris/.env.before-gpt6-luna-20261002T095941`，原檔與備份皆 600；本機備份位於忽略的 `.venv` 目錄。
+- Result: Pass（NAS 運行設定、真實模型回答、容器與端點）；不宣稱手機 LINE E2E 或 30 題評估重跑。
+- Review: CodeRabbit／Completion Critic route=skip；僅可復原的環境設定變更，無原始碼或映像修改，直接回讀部署結果與真實探針已覆蓋本次驗收。NAS 既有 Compose 與本機版本差異不納入此次變更。
+- Limitations: NAS 不支援本次 SFTP subsystem，改以 SSH 安全備份／原子換檔。現有本機 `.venv` 缺少 linebot.api／dotenv，未修補依賴，亦未宣稱本機完整應用測試通過；正式 NAS 的 Settings 與 AnswerService 實際驗證成功。
+- Date: 2026-10-02
+- Linked task ID: LB-007
+- Run type: configuration change + live provider probe + NAS container recreation + internal/public health verification
+
+## ST-025｜Mission Center 進度對帳與摘要一致性
+
+- What was tested: 任務完成狀態、進度條、工作摘要、專案階段、日期分組與 Markdown 格式。
+- How it was tested: Codex 與 Luna 唯讀核對保存的 ST-001～ST-024，依驗證結案四項基礎 Task；PowerShell 從 tasks.md 解析數量，檢查 Done 任務未列入 working-set、progress 為 6/7／86%、Cycle 已離開 M1、10 月 2 日日誌只有一個日期區段；執行 Rust doctor 與 git diff --check。
+- Expected result: 歷史通過項目正確結案，未完成評審與交付保留；文件數量與狀態一致，無 Done 任務混入目前工作。
+- Observed result: 文件一致性斷言 PASS；doctor 的 tasks 與 writer lock 檢查 pass、整體 status=pass；completion passport 為 legacy warning／unknown，不宣稱 passport 驗證通過。diff check exit 0。Task 為 6/7 Done，另有 LB-E2／LB-E3／LB-E5 Review 與 LB-E6 In Progress。
+- Result: Pass（文件對帳與內容一致性）；插件 status 仍為 source_fingerprint_mismatch，此快取診斷問題見 notes.md，未宣稱 freshness pass。
+- Review: 對照既有測試／審查紀錄與 Luna 唯讀證據映射，未修改機器人原始碼或新增應用測試；Completion Critic route=skip（可復原、非視覺文件維護）。
+- Date: 2026-10-02
+- Linked task ID: LB-001, LB-002, LB-003, LB-004, LB-E1, LB-E4
+- Run type: existing-evidence audit + metadata consistency checks

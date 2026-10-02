@@ -80,7 +80,7 @@ def migrate(ngrok_source: Path, app_source: Path, output: Path) -> tuple[str, ..
             handle.write(
                 "AI_PROVIDER=auto\n"
                 "GEMINI_MODEL=gemma-4-26b-a4b-it\n"
-                "OPENAI_MODEL=gpt-5.6-luna\n"
+                "OPENAI_MODEL=gpt-6-luna\n"
                 "MODEL_TIMEOUT_SECONDS=5\n"
                 "APP_PORT=5000\n"
             )

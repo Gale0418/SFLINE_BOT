@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from typing import Any, Protocol
 from urllib.parse import quote
 
@@ -9,7 +10,7 @@ import httpx
 from openai import OpenAI
 
 from .knowledge import KnowledgeBase
-from .models import BotAnswer, Exchange, ScienceLabel
+from .models import BotAnswer, Exchange, KnowledgeCard, ScienceLabel
 
 OUT_OF_SCOPE_REPLY = (
     "這點我不是很確定，還得再核實。你若願意多說一點背景，我們可以慢慢釐清。"
@@ -60,6 +61,18 @@ _SCIENTIFIC_QUANTITY_SUFFIX_PATTERN = re.compile(
     r")(?=$|[\s，。！？、,.;:）)])",
     re.IGNORECASE,
 )
+_CONTEXT_DEPENDENT_FOLLOWUP_PATTERN = re.compile(
+    r"^\s*(?:那(?:是)?(?:哪|幾|什麼|怎麼|為什麼|有|呢|又)|"
+    r"那(?:個|件|位|張)(?:呢|嗎|如何|怎麼)|那(?:它|他|她)|"
+    r"這(?:個|件|位|張|樣)(?:呢|嗎|如何|怎麼)|"
+    r"它(?:呢|嗎|如何|怎麼)|他(?:呢|嗎|如何|怎麼)|她(?:呢|嗎|如何|怎麼)|"
+    r"上述|前面|剛才)"
+)
+_CARD_REQUEST_PATTERN = re.compile(
+    r"(?:給我|提供|找|列出?|看看?|顯示|交出|拿出|相關|有哪些|有沒有).{0,12}(?:知識卡|卡片)|"
+    r"(?:知識卡|卡片).{0,12}(?:給我|提供|找|列出?|看看?|顯示|相關|有哪些|有沒有)",
+    re.IGNORECASE,
+)
 
 
 def _passes_luhn(value: str) -> bool:
@@ -87,13 +100,53 @@ def _mask_unlabeled_payment_card(match: re.Match[str]) -> str:
 
 
 def _redact_sensitive(text: str) -> str:
-    redacted = text[:1000]
+    redacted = text
     for pattern, replacement in _SENSITIVE_PATTERNS:
         redacted = pattern.sub(replacement, redacted)
     for pattern, replacement in _CONTEXTUAL_SENSITIVE_PATTERNS:
         redacted = pattern.sub(replacement, redacted)
     redacted = _UNLABELED_PAYMENT_CARD_PATTERN.sub(_mask_unlabeled_payment_card, redacted)
-    return redacted
+    return redacted[:1000]
+
+
+_CARD_REQUEST_PREFIX = re.compile(
+    r"^\s*(?:(?:請|可以|能不能|能否)\s*)?"
+    r"(?:快交出|交出|給我|提供|找出|找|列出|列|看看|顯示|有沒有)\s*"
+)
+_CARD_REQUEST_SUFFIX = re.compile(r"(?:的)?(?:相關)?(?:知識卡|卡片)[？?！!。\s]*$")
+
+
+def _card_request_subject(question: str) -> str:
+    return _CARD_REQUEST_SUFFIX.sub("", _CARD_REQUEST_PREFIX.sub("", question)).strip()
+
+
+def _normalize_retrieval_text(text: str) -> str:
+    return re.sub(
+        r"[^0-9a-z\u3400-\u9fff]+",
+        "",
+        unicodedata.normalize("NFKC", text).lower(),
+    )
+
+
+def _has_explicit_card_subject(question: str, cards: tuple[KnowledgeCard, ...]) -> bool:
+    subject = _normalize_retrieval_text(_card_request_subject(question))
+    if len(subject) < 2:
+        return False
+    return any(
+        subject in _normalize_retrieval_text(phrase)
+        for card in cards
+        for phrase in (card.canonical_question, *card.aliases)
+        if _normalize_retrieval_text(phrase)
+    )
+
+
+def _has_named_card_topic(question: str, cards: tuple[KnowledgeCard, ...]) -> bool:
+    normalized = _normalize_retrieval_text(question)
+    return any(
+        len(topic := _normalize_retrieval_text(phrase)) >= 2 and topic in normalized
+        for card in cards
+        for phrase in (card.canonical_question, *card.aliases)
+    )
 
 
 class AnswerProvider(Protocol):
@@ -252,8 +305,19 @@ class OpenAIAnswerService:
             f"使用者：{_redact_sensitive(exchange.user)}\n永恆北極星：{_redact_sensitive(exchange.assistant)}"
             for exchange in history[-3:]
         )
-        retrieval_query = " ".join((*[item.user for item in history[-3:]], question))
-        context_cards = self._knowledge.context_cards_for_question(retrieval_query)
+        context_cards = self._knowledge.context_cards_for_question(question)
+        if (
+            history and _CONTEXT_DEPENDENT_FOLLOWUP_PATTERN.match(question)
+            and not _has_named_card_topic(question, context_cards)
+        ):
+            # Pronouns and generic dates can have weak lexical neighbors of
+            # their own. Resolve them from the latest named user topic instead.
+            context_cards = ()
+            # Do not cross a newer unknown subject to revive an older card.
+            prior_question = history[-1].user
+            prior_cards = self._knowledge.context_cards_for_question(prior_question)
+            if _has_named_card_topic(prior_question, prior_cards):
+                context_cards = prior_cards
         context = self._knowledge.prompt_context(context_cards)
         evidence = context or "（沒有足夠相關的知識卡；此時不得杜撰卡片 ID 或來源。）"
         prompt = (
@@ -272,15 +336,18 @@ class OpenAIAnswerService:
         answer_text = raw["answer"].strip()
         if not 1 <= len(answer_text) <= 700:
             raise ValueError("模型答案長度超出允許範圍")
-        source_ids = raw["source_ids"]
+        source_ids = raw.get("source_ids")
         if not isinstance(source_ids, list):
             raise TypeError("source_ids 必須是陣列")
         if any(not isinstance(value, str) for value in source_ids):
             raise TypeError("source_ids 只能包含字串")
         if any(str(value) not in allowed_source_ids for value in source_ids):
             raise ValueError("模型引用了本題未提供的知識卡")
+        label = raw.get("label")
+        if not isinstance(label, str):
+            raise TypeError("label 必須是字串")
         answer = BotAnswer(
-            label=ScienceLabel(raw["label"]),
+            label=ScienceLabel(label),
             answer=answer_text,
             source_ids=tuple(str(value) for value in source_ids),
             route="model",
@@ -399,6 +466,31 @@ class HybridAnswerService:
         self._min_margin = min_margin
 
     def answer(self, question: str, history: tuple[Exchange, ...]) -> BotAnswer:
+        if _CARD_REQUEST_PATTERN.search(question):
+            subject = _card_request_subject(question)
+            exact = self._knowledge.match_question(subject)
+            if (
+                exact is not None
+                and _normalize_retrieval_text(subject) == _normalize_retrieval_text(exact.canonical_question)
+            ):
+                cards = (exact,)
+            else:
+                candidates = self._knowledge.context_cards_for_question(question, limit=3)
+                if exact is not None:
+                    candidates = (exact, *(card for card in candidates if card.id != exact.id))
+                cards = tuple(
+                    card for card in candidates
+                    if _has_explicit_card_subject(question, (card,))
+                )[:3]
+            if cards:
+                answer = BotAnswer(
+                    label=cards[0].label,
+                    answer=cards[0].canonical_question,
+                    source_ids=tuple(card.id for card in cards),
+                    route="local",
+                )
+                return self._knowledge.ground_answer(answer)
+
         # Follow-ups need conversational intent, not a context-free fuzzy match.
         if history:
             return self._model_service.answer(question, history)
@@ -420,11 +512,17 @@ class HybridAnswerService:
 def render_answer(answer: BotAnswer, knowledge: KnowledgeBase) -> str:
     from .models import LABEL_TITLES
 
-    if answer.label in (ScienceLabel.CHAT, ScienceLabel.GENERAL):
+    if answer.label in (ScienceLabel.CHAT, ScienceLabel.GENERAL) and not answer.source_ids:
         return answer.answer
     if answer.label is ScienceLabel.UNCERTAIN:
         return f"這點我不是很確定，還得再核實。\n\n{answer.answer}"
     if answer.label is ScienceLabel.OUT_OF_SCOPE:
         return OUT_OF_SCOPE_REPLY
     sources = "、".join(knowledge.source_names(answer.source_ids))
-    return f"【{LABEL_TITLES[answer.label]}】\n{answer.answer}\n\n來源：{sources}"
+    jokes = "\n".join(
+        f"冷知識: {knowledge.by_id[source_id].cold_joke}"
+        for source_id in answer.source_ids
+        if knowledge.by_id[source_id].cold_joke
+    )
+    humor = f"\n\n{jokes}" if jokes else ""
+    return f"【{LABEL_TITLES[answer.label]}】\n{answer.answer}{humor}\n\n來源：{sources}"

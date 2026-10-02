@@ -66,7 +66,7 @@ def test_env_loading_does_not_interpolate_secret_values(monkeypatch, tmp_path):
     settings = Settings.from_env(env_file)
     assert settings.ai_provider == "openai"
     assert settings.openai_api_key == "value-${SHOULD_NOT_EXPAND}"
-    assert settings.openai_model == "gpt-5.6-luna"
+    assert settings.openai_model == "gpt-6-luna"
     assert settings.openai_timeout_seconds == 5.0
     assert settings.quiz_ttl_seconds == 1800
 
@@ -117,7 +117,7 @@ def test_explicit_openai_never_silently_switches_to_google(monkeypatch, tmp_path
     settings = Settings.from_env(env_file)
     assert settings.ai_provider == "openai"
     assert settings.openai_api_key == "openai-secret"
-    assert settings.openai_model == "gpt-5.6-luna"
+    assert settings.openai_model == "gpt-6-luna"
 
 
 def test_provider_model_mismatch_is_rejected():

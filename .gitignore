@@ -23,9 +23,13 @@ build/
 logs/
 results/
 output/mission-center-assets/
+.DS_Store
+output/word-report-qa/
+output/code-review-*/
 
 # Local presentation deliverables may contain personal presenter information.
 deliverables/
 assets/report/
 scripts/build_project_presentation_v*.mjs
+scripts/build_word_report.py
 docs/presentation-*/
